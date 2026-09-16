@@ -6,6 +6,8 @@
     <application
         android:theme="@style/Theme.BQProEdit"
         android:label="BQ Pro Edit"
+        android:icon="@drawable/bq_pro_edit_logo"
+        android:roundIcon="@drawable/bq_pro_edit_logo"
         android:allowBackup="true"
         android:supportsRtl="true">
         <activity
