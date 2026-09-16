@@ -1,7 +1,5 @@
 package com.bqsqwad.proedit.editor
 
-import android.graphics.PointF
-import com.google.mlkit.common.MlKitException
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.objects.DetectedObject
 import com.google.mlkit.vision.objects.ObjectDetection
@@ -43,13 +41,20 @@ class BqVisionTracker {
 }
 
 private fun Pose.toBqPose(frameTimeUs: Long): BqPersonPose? {
-    val points = landmarks.associate { landmark ->
+    val poseLandmarks = allPoseLandmarks
+    if (poseLandmarks.isEmpty()) return null
+
+    val points = poseLandmarks.associate { landmark ->
         landmark.landmarkType.toString() to BqPoint(landmark.position.x, landmark.position.y)
     }
-    if (points.isEmpty()) return null
-    val xs = points.values.map { it.x }
-    val ys = points.values.map { it.y }
-    val box = BqTrackedBox(xs.min(), ys.min(), xs.max(), ys.max())
+    val xs = poseLandmarks.map { it.position.x.toDouble() }
+    val ys = poseLandmarks.map { it.position.y.toDouble() }
+    val box = BqTrackedBox(
+        xs.min().toFloat(),
+        ys.min().toFloat(),
+        xs.max().toFloat(),
+        ys.max().toFloat()
+    )
     return BqPersonPose(frameTimeUs, box, points, 1f)
 }
 
