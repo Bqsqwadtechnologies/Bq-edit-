@@ -59,13 +59,13 @@ private fun Pose.toBqPose(frameTimeUs: Long): BqPersonPose? {
         )
     }
 
-    val xs = poseLandmarks.map { landmark -> landmark.getPosition().x.toDouble() }
-    val ys = poseLandmarks.map { landmark -> landmark.getPosition().y.toDouble() }
+    val xs = poseLandmarks.map { landmark -> landmark.getPosition().x }
+    val ys = poseLandmarks.map { landmark -> landmark.getPosition().y }
     val box = BqTrackedBox(
-        xs.min().toFloat(),
-        ys.min().toFloat(),
-        xs.max().toFloat(),
-        ys.max().toFloat()
+        xs.minOrNull() ?: return null,
+        ys.minOrNull() ?: return null,
+        xs.maxOrNull() ?: return null,
+        ys.maxOrNull() ?: return null
     )
     return BqPersonPose(frameTimeUs, box, points, 1f)
 }
