@@ -16,14 +16,16 @@ class BqMediaEngine(private val context: Context) {
     fun mediaItem(uri: Uri): MediaItem = MediaItem.fromUri(uri)
 
     fun editedMediaItem(clip: BqClip): EditedMediaItem {
-        val builder = EditedMediaItem.Builder(mediaItem(clip.uri))
-        if (clip.startMs > 0L || clip.endMs != null) {
-            val clipping = androidx.media3.common.MediaItem.ClippingConfiguration.Builder()
-                .setStartPositionMs(clip.startMs)
-                .apply { clip.endMs?.let { setEndPositionMs(it) } }
-                .build()
-            builder.setMediaItem(MediaItem.Builder().setUri(clip.uri).setClippingConfiguration(clipping).build())
-        }
+        val mediaItem = MediaItem.Builder()
+            .setUri(clip.uri)
+            .setClippingConfiguration(
+                MediaItem.ClippingConfiguration.Builder()
+                    .setStartPositionMs(clip.startMs)
+                    .apply { clip.endMs?.let { setEndPositionMs(it) } }
+                    .build()
+            )
+            .build()
+        val builder = EditedMediaItem.Builder(mediaItem)
         if (clip.rotationDegrees != 0f || clip.scale != 1f) {
             builder.setEffects(
                 androidx.media3.transformer.Effects(
@@ -42,16 +44,16 @@ class BqMediaEngine(private val context: Context) {
 
     fun export(clip: BqClip, onStarted: (File) -> Unit, onCompleted: (File) -> Unit, onError: (ExportException) -> Unit) {
         val output = File(context.cacheDir, "bq_export_${UUID.randomUUID()}.mp4")
-        output.parentFile?.mkdirs()
-        val transformer = Transformer.Builder(context).build()
-        transformer.addListener(object : Transformer.Listener {
-            override fun onCompleted(composition: androidx.media3.transformer.Composition, exportResult: androidx.media3.transformer.ExportResult) {
-                onCompleted(output)
-            }
-            override fun onError(composition: androidx.media3.transformer.Composition, exportResult: androidx.media3.transformer.ExportResult, exportException: ExportException) {
-                onError(exportException)
-            }
-        })
+        val transformer = Transformer.Builder(context)
+            .addListener(object : Transformer.Listener {
+                override fun onCompleted(composition: androidx.media3.transformer.Composition, exportResult: androidx.media3.transformer.ExportResult) {
+                    onCompleted(output)
+                }
+                override fun onError(composition: androidx.media3.transformer.Composition, exportResult: androidx.media3.transformer.ExportResult, exportException: ExportException) {
+                    onError(exportException)
+                }
+            })
+            .build()
         onStarted(output)
         transformer.start(editedMediaItem(clip), output.absolutePath)
     }
