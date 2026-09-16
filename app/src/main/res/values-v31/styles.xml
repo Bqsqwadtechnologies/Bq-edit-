@@ -1,0 +1,11 @@
+<resources>
+    <style name="Theme.BQProEdit" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">#090B10</item>
+        <item name="android:navigationBarColor">#090B10</item>
+        <item name="android:windowSplashScreenBackground">#071A4A</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/bq_pro_edit_logo</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">#071A4A</item>
+    </style>
+</resources>
