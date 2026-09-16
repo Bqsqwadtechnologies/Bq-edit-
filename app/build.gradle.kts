@@ -14,6 +14,7 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildFeatures { compose = true }
@@ -37,5 +38,6 @@ dependencies {
     implementation("androidx.media3:media3-transformer:$media3")
     implementation("com.google.mlkit:object-detection:17.0.2")
     implementation("com.google.mlkit:pose-detection:18.0.0-beta5")
+    testImplementation("junit:junit:4.13.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
