@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -40,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.Player
@@ -48,7 +50,6 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.bqsqwad.proedit.editor.BqClip
 import com.bqsqwad.proedit.editor.BqMediaEngine
-import com.bqsqwad.proedit.editor.BqProject
 import com.bqsqwad.proedit.editor.BqProjectHistory
 import com.bqsqwad.proedit.editor.BqSuperpowerFxCatalog
 import java.io.File
@@ -113,6 +114,11 @@ private fun BqProEditApp() {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Image(
+                    painter = painterResource(R.drawable.bq_pro_edit_logo),
+                    contentDescription = "BQ Pro Edit logo",
+                    modifier = Modifier.width(56.dp).height(56.dp).padding(end = 8.dp)
+                )
                 Column(modifier = Modifier.weight(1f)) {
                     Text("BQ Pro Edit", style = MaterialTheme.typography.headlineSmall)
                     Text("BQ Sqwad Technologies · Professional Editor", style = MaterialTheme.typography.labelMedium)
@@ -134,7 +140,14 @@ private fun BqProEditApp() {
                     factory = { PlayerView(it).apply { this.player = player; useController = true } }
                 )
                 if (project.clips.isEmpty()) {
-                    Text("Import a video to begin", modifier = Modifier.align(Alignment.Center), style = MaterialTheme.typography.titleMedium)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.align(Alignment.Center)) {
+                        Image(
+                            painter = painterResource(R.drawable.bq_pro_edit_logo),
+                            contentDescription = null,
+                            modifier = Modifier.width(88.dp).height(88.dp).padding(bottom = 8.dp)
+                        )
+                        Text("Import a video to begin", style = MaterialTheme.typography.titleMedium)
+                    }
                 }
             }
 
@@ -154,7 +167,6 @@ private fun BqProEditApp() {
                 Button(onClick = { if (player.isPlaying) player.pause() else player.play() }) { Text(if (isPlaying) "Pause" else "Play") }
                 OutlinedButton(onClick = {
                     val id = project.selectedClipId ?: return@OutlinedButton
-                    val clip = project.clips.firstOrNull { it.id == id } ?: return@OutlinedButton
                     val next = project.copy(clips = project.clips.map { if (it.id == id) it.copy(startMs = player.currentPosition) else it })
                     history.commit(next); project = next
                 }, enabled = project.selectedClipId != null) { Text("Set In") }
