@@ -6,6 +6,7 @@ import com.google.mlkit.vision.objects.ObjectDetection
 import com.google.mlkit.vision.objects.defaults.ObjectDetectorOptions
 import com.google.mlkit.vision.pose.Pose
 import com.google.mlkit.vision.pose.PoseDetection
+import com.google.mlkit.vision.pose.PoseLandmark
 import com.google.mlkit.vision.pose.defaults.PoseDetectorOptions
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -17,22 +18,29 @@ class BqVisionTracker {
         PoseDetectorOptions.Builder().setDetectorMode(PoseDetectorOptions.STREAM_MODE).build()
     )
     private val objectDetector = ObjectDetection.getClient(
-        ObjectDetectorOptions.Builder().setDetectorMode(ObjectDetectorOptions.STREAM_MODE).enableMultipleObjects().build()
+        ObjectDetectorOptions.Builder()
+            .setDetectorMode(ObjectDetectorOptions.STREAM_MODE)
+            .enableMultipleObjects()
+            .build()
     )
 
-    suspend fun detectPose(image: InputImage, frameTimeUs: Long): BqPersonPose? = suspendCancellableCoroutine { cont ->
-        poseDetector.process(image)
-            .addOnSuccessListener { pose -> cont.resume(pose.toBqPose(frameTimeUs)) }
-            .addOnFailureListener { error -> cont.resumeWithException(error) }
-        cont.invokeOnCancellation { poseDetector.close() }
-    }
+    suspend fun detectPose(image: InputImage, frameTimeUs: Long): BqPersonPose? =
+        suspendCancellableCoroutine { cont ->
+            poseDetector.process(image)
+                .addOnSuccessListener { pose -> cont.resume(pose.toBqPose(frameTimeUs)) }
+                .addOnFailureListener { error -> cont.resumeWithException(error) }
+            cont.invokeOnCancellation { poseDetector.close() }
+        }
 
-    suspend fun detectObjects(image: InputImage, frameTimeUs: Long): List<BqTrackedObject> = suspendCancellableCoroutine { cont ->
-        objectDetector.process(image)
-            .addOnSuccessListener { objects -> cont.resume(objects.map { it.toBqObject(frameTimeUs) }) }
-            .addOnFailureListener { error -> cont.resumeWithException(error) }
-        cont.invokeOnCancellation { objectDetector.close() }
-    }
+    suspend fun detectObjects(image: InputImage, frameTimeUs: Long): List<BqTrackedObject> =
+        suspendCancellableCoroutine { cont ->
+            objectDetector.process(image)
+                .addOnSuccessListener { objects ->
+                    cont.resume(objects.map { it.toBqObject(frameTimeUs) })
+                }
+                .addOnFailureListener { error -> cont.resumeWithException(error) }
+            cont.invokeOnCancellation { objectDetector.close() }
+        }
 
     fun close() {
         poseDetector.close()
@@ -41,14 +49,18 @@ class BqVisionTracker {
 }
 
 private fun Pose.toBqPose(frameTimeUs: Long): BqPersonPose? {
-    val poseLandmarks = allPoseLandmarks
+    val poseLandmarks: List<PoseLandmark> = getAllPoseLandmarks()
     if (poseLandmarks.isEmpty()) return null
 
     val points = poseLandmarks.associate { landmark ->
-        landmark.landmarkType.toString() to BqPoint(landmark.position.x, landmark.position.y)
+        landmark.getLandmarkType().toString() to BqPoint(
+            landmark.getPosition().x,
+            landmark.getPosition().y
+        )
     }
-    val xs = poseLandmarks.map { it.position.x.toDouble() }
-    val ys = poseLandmarks.map { it.position.y.toDouble() }
+
+    val xs = poseLandmarks.map { landmark -> landmark.getPosition().x.toDouble() }
+    val ys = poseLandmarks.map { landmark -> landmark.getPosition().y.toDouble() }
     val box = BqTrackedBox(
         xs.min().toFloat(),
         ys.min().toFloat(),
