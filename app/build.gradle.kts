@@ -17,6 +17,11 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
     buildFeatures { compose = true }
 
     packaging {
@@ -36,6 +41,7 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:$media3")
     implementation("androidx.media3:media3-ui:$media3")
     implementation("androidx.media3:media3-transformer:$media3")
+    implementation("androidx.media3:media3-effect:$media3")
     implementation("com.google.mlkit:object-detection:17.0.2")
     implementation("com.google.mlkit:pose-detection:18.0.0-beta5")
     testImplementation("junit:junit:4.13.2")
