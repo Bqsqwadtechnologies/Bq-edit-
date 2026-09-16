@@ -1,13 +1,15 @@
 package com.bqsqwad.proedit.editor
 
+import android.net.Uri
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.mockito.Mockito.mock
 
 class BqProjectHistoryTest {
     @Test fun commitUndoRedoRestoresProjectState() {
         val history = BqProjectHistory()
-        val clip = BqClip("1", android.net.Uri.parse("content://video/1"), "clip")
+        val clip = BqClip("1", mock(Uri::class.java), "clip")
         val next = history.current.copy(clips = listOf(clip), selectedClipId = "1")
         history.commit(next)
         assertEquals(1, history.current.clips.size)
