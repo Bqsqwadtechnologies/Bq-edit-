@@ -1,10 +1,7 @@
 package com.bqsqwad.proedit.editor
 
-import android.net.Uri
-
+/** Timeline primitives. ProjectModel owns clips; timeline tracks describe lanes and visibility. */
 enum class BqTrackType { VIDEO, OVERLAY, AUDIO, TEXT, IMAGE, EFFECT }
-
-data class BqKeyframe<T>(val timeMs: Long, val value: T)
 
 data class BqTransformKeyframes(
     val positionX: List<BqKeyframe<Float>> = emptyList(),
@@ -17,7 +14,7 @@ data class BqTransformKeyframes(
 data class BqTimelineItem(
     val id: String,
     val trackId: String,
-    val sourceUri: Uri? = null,
+    val sourceUri: android.net.Uri? = null,
     val startMs: Long,
     val durationMs: Long,
     val transform: BqTransformKeyframes = BqTransformKeyframes(),
@@ -34,14 +31,25 @@ data class BqTimelineTrack(
     val items: List<BqTimelineItem> = emptyList()
 )
 
-fun <T> List<BqKeyframe<T>>.sampleAt(timeMs: Long): T? {
-    if (isEmpty()) return null
-    val before = lastOrNull { it.timeMs <= timeMs }
-    val after = firstOrNull { it.timeMs >= timeMs }
-    return when {
-        before == null -> after?.value
-        after == null -> before.value
-        timeMs - before.timeMs <= after.timeMs - timeMs -> before.value
-        else -> after.value
+object BqTimelineOps {
+    fun split(clip: BqClip, atMs: Long): Pair<BqClip, BqClip>? {
+        val end = clip.endMs ?: return null
+        if (atMs <= clip.startMs || atMs >= end) return null
+        val left = clip.copy(id = java.util.UUID.randomUUID().toString(), endMs = atMs)
+        val right = clip.copy(id = java.util.UUID.randomUUID().toString(), startMs = atMs)
+        return left to right
+    }
+
+    fun trim(clip: BqClip, startMs: Long, endMs: Long): BqClip? {
+        if (startMs < 0 || endMs <= startMs) return null
+        if (clip.endMs != null && endMs > clip.endMs) return null
+        return clip.copy(startMs = startMs, endMs = endMs)
+    }
+
+    fun duplicate(clip: BqClip): BqClip = clip.copy(id = java.util.UUID.randomUUID().toString(), name = "${clip.name} copy")
+
+    fun snap(positionMs: Long, candidates: List<Long>, thresholdMs: Long = 120L): Long {
+        val nearest = candidates.minByOrNull { kotlin.math.abs(it - positionMs) } ?: return positionMs
+        return if (kotlin.math.abs(nearest - positionMs) <= thresholdMs) nearest else positionMs
     }
 }

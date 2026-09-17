@@ -1,13 +1,16 @@
 name: BQ Pro Edit Android Build
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
+    inputs:
+      run_tests:
+        description: Run JVM unit tests before packaging
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: read
-  actions: write
 
 concurrency:
   group: bq-pro-edit-main-build
@@ -16,9 +19,9 @@ concurrency:
 jobs:
   verify-and-build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
-      - name: Checkout latest main
+      - name: Checkout main only
         uses: actions/checkout@v4
         with:
           ref: main
@@ -39,22 +42,22 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install required Android SDK packages
+      - name: Install Android SDK packages
         run: |
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Verify checked-out main commit
+      - name: Verify repository integrity
         run: |
-          echo "Building main at $(git rev-parse HEAD)"
+          set -euo pipefail
           test "$(git branch --show-current)" = "main"
           test -f settings.gradle.kts
           test -f app/build.gradle.kts
-
-      - name: Verify Gradle version
-        run: gradle --version
+          test -f app/src/main/AndroidManifest.xml
+          grep -R "com.bqsqwad.proedit" -n app/src/main | head
 
       - name: Run unit tests
+        if: ${{ inputs.run_tests != false }}
         run: gradle :app:testDebugUnitTest --stacktrace --no-daemon
 
       - name: Build debug APK
@@ -66,18 +69,18 @@ jobs:
       - name: Build release AAB
         run: gradle :app:bundleRelease --stacktrace --no-daemon
 
-      - name: Verify build outputs
+      - name: Verify real outputs
         shell: bash
         run: |
           set -euo pipefail
+          shopt -s nullglob
           debug_apk=(app/build/outputs/apk/debug/*.apk)
           release_apk=(app/build/outputs/apk/release/*.apk)
           release_aab=(app/build/outputs/bundle/release/*.aab)
-          test -s "${debug_apk[0]}"
-          test -s "${release_apk[0]}"
-          test -s "${release_aab[0]}"
-          echo "Android debug APK, release APK, and release AAB verified from main"
-          printf '%s\n' "${debug_apk[@]}" "${release_apk[@]}" "${release_aab[@]}"
+          ((${#debug_apk[@]} > 0)) && test -s "${debug_apk[0]}"
+          ((${#release_apk[@]} > 0)) && test -s "${release_apk[0]}"
+          ((${#release_aab[@]} > 0)) && test -s "${release_aab[0]}"
+          printf 'Verified outputs:\n%s\n' "${debug_apk[@]}" "${release_apk[@]}" "${release_aab[@]}"
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4

@@ -1,30 +1,7 @@
 package com.bqsqwad.proedit.editor
 
-import android.net.Uri
-
-/** Non-destructive project state. Media files remain untouched; edits are metadata. */
-data class BqClip(
-    val id: String,
-    val uri: Uri,
-    val name: String,
-    val startMs: Long = 0L,
-    val endMs: Long? = null,
-    val speed: Float = 1f,
-    val rotationDegrees: Float = 0f,
-    val scale: Float = 1f,
-    val x: Float = 0f,
-    val y: Float = 0f,
-    val volume: Float = 1f
-)
-
-data class BqProject(
-    val name: String = "Untitled Project",
-    val clips: List<BqClip> = emptyList(),
-    val selectedClipId: String? = null,
-    val playheadMs: Long = 0L
-)
-
-class BqProjectHistory(initial: BqProject = BqProject()) {
+/** Bounded undo/redo history for immutable project states. */
+class BqProjectHistory(initial: BqProject = BqProject(), private val maxEntries: Int = 100) {
     private val undoStack = ArrayDeque<BqProject>().apply { addLast(initial) }
     private val redoStack = ArrayDeque<BqProject>()
 
@@ -35,6 +12,7 @@ class BqProjectHistory(initial: BqProject = BqProject()) {
     fun commit(next: BqProject) {
         if (next == current) return
         undoStack.addLast(next)
+        while (undoStack.size > maxEntries.coerceAtLeast(2)) undoStack.removeFirst()
         redoStack.clear()
     }
 
@@ -50,4 +28,6 @@ class BqProjectHistory(initial: BqProject = BqProject()) {
         undoStack.addLast(next)
         return next
     }
+
+    fun clearRedo() = redoStack.clear()
 }

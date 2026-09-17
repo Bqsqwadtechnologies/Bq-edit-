@@ -21,9 +21,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.weight
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
@@ -31,7 +33,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -51,13 +56,21 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.bqsqwad.proedit.editor.BqClip
+import com.bqsqwad.proedit.editor.BqEffectKind
+import com.bqsqwad.proedit.editor.BqEffectLayer
+import com.bqsqwad.proedit.editor.BqExportConfig
 import com.bqsqwad.proedit.editor.BqMediaEngine
+import com.bqsqwad.proedit.editor.BqMediaType
 import com.bqsqwad.proedit.editor.BqProject
 import com.bqsqwad.proedit.editor.BqProjectHistory
 import com.bqsqwad.proedit.editor.BqProjectStore
+import com.bqsqwad.proedit.editor.BqProjectValidator
 import com.bqsqwad.proedit.editor.BqSuperpowerFxCatalog
+import com.bqsqwad.proedit.editor.BqSuperpowerFxKind
+import com.bqsqwad.proedit.editor.BqTimelineOps
 import java.io.File
 import java.util.UUID
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -73,283 +86,255 @@ private fun BqProEditApp() {
     val player = remember { ExoPlayer.Builder(context).build() }
     val engine = remember { BqMediaEngine(context) }
     val store = remember { BqProjectStore(context) }
-    val savedProject = remember { store.load() }
-    val history = remember { BqProjectHistory(savedProject ?: BqProject()) }
+    val initial = remember { store.load() ?: BqProject() }
+    val history = remember { BqProjectHistory(initial) }
     var project by remember { mutableStateOf(history.current) }
     var isPlaying by remember { mutableStateOf(false) }
     var position by remember { mutableLongStateOf(project.playheadMs) }
     var duration by remember { mutableLongStateOf(1L) }
-    var exportState by remember { mutableStateOf<String?>(null) }
+    var status by remember { mutableStateOf<String?>(null) }
+    var showRename by remember { mutableStateOf(false) }
+    var inspectorTab by remember { mutableStateOf(0) }
+    var exportBusy by remember { mutableStateOf(false) }
 
     fun commit(next: BqProject) {
-        history.commit(next)
-        project = next
-        store.save(next)
+        val errors = BqProjectValidator.validate(next)
+        if (errors.isNotEmpty()) { status = errors.first(); return }
+        history.commit(next.copy(lastSavedAt = System.currentTimeMillis()))
+        project = history.current
+        store.save(project)
     }
 
-    fun loadClip(clip: BqClip) {
-        player.setMediaItem(engine.mediaItem(clip.uri))
-        player.prepare()
-        player.playWhenReady = false
-        position = clip.startMs
-        player.seekTo(clip.startMs)
+    fun selectClip(clip: BqClip) {
+        commit(project.copy(selectedClipId = clip.id))
+        if (clip.mediaType == BqMediaType.VIDEO) {
+            runCatching {
+                player.setMediaItem(engine.mediaItem(clip.uri))
+                player.prepare()
+                player.playWhenReady = false
+                position = clip.startMs
+                player.seekTo(clip.startMs)
+            }.onFailure { status = "Unable to preview media: ${it.message ?: "unknown error"}" }
+        }
     }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris: List<Uri> ->
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
-        val clips = uris.map { uri ->
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
+        val newClips = uris.mapNotNull { uri ->
+            runCatching { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            val mime = context.contentResolver.getType(uri).orEmpty()
+            val type = when {
+                mime.startsWith("image/") -> BqMediaType.IMAGE
+                mime.startsWith("audio/") -> BqMediaType.AUDIO
+                else -> BqMediaType.VIDEO
             }
-            BqClip(
-                id = UUID.randomUUID().toString(),
-                uri = uri,
-                name = uri.lastPathSegment ?: "Imported clip"
-            )
+            val name = uri.lastPathSegment ?: "Imported media"
+            if (project.clips.any { it.uri == uri && it.mediaType == type }) null
+            else BqClip(UUID.randomUUID().toString(), uri, name, mediaType = type)
         }
-        val next = project.copy(
-            clips = project.clips + clips,
-            selectedClipId = clips.last().id
-        )
-        commit(next)
-        loadClip(clips.last())
+        if (newClips.isNotEmpty()) {
+            val assets = newClips.map { clip -> engine.inspect(clip.uri, clip.name).copy(type = clip.mediaType) }
+            commit(project.copy(clips = project.clips + newClips, assets = project.assets + assets, selectedClipId = newClips.last().id))
+            selectClip(newClips.last())
+            status = "Imported ${newClips.size} media item(s)"
+        }
     }
 
     DisposableEffect(player) {
         val listener = object : Player.Listener {
-            override fun onIsPlayingChanged(playing: Boolean) {
-                isPlaying = playing
-            }
-
-            override fun onPlaybackStateChanged(state: Int) {
-                if (state == Player.STATE_READY) {
-                    duration = player.duration.coerceAtLeast(1L)
-                }
-            }
+            override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
+            override fun onPlaybackStateChanged(state: Int) { if (state == Player.STATE_READY) duration = player.duration.coerceAtLeast(1L) }
         }
         player.addListener(listener)
-        onDispose {
-            player.removeListener(listener)
-            player.release()
-        }
+        onDispose { player.removeListener(listener); player.release() }
     }
 
+    LaunchedEffect(project) {
+        delay(700)
+        store.save(project)
+    }
     LaunchedEffect(isPlaying) {
         while (isPlaying) {
             position = player.currentPosition
-            val selected = project.selectedClipId
-            if (selected != null) {
-                store.save(project.copy(playheadMs = position))
-            }
-            kotlinx.coroutines.delay(100)
+            project.selectedClipId?.let { id -> if (project.clips.any { it.id == id }) store.save(project.copy(playheadMs = position)) }
+            delay(100)
         }
     }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Image(
-                    painter = painterResource(R.drawable.bq_pro_edit_logo),
-                    contentDescription = "BQ Pro Edit logo",
-                    modifier = Modifier.width(56.dp).height(56.dp).padding(end = 8.dp)
-                )
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("BQ Pro Edit", style = MaterialTheme.typography.headlineSmall)
-                    Text("BQ Sqwad Technologies · Professional Editor", style = MaterialTheme.typography.labelMedium)
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Column(Modifier.fillMaxSize().padding(10.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Image(painterResource(com.bqsqwad.proedit.R.drawable.bq_pro_edit_logo), "BQ Pro Edit", Modifier.width(48.dp).height(48.dp))
+                Column(Modifier.weight(1f).padding(start = 8.dp)) {
+                    Text(project.name, style = MaterialTheme.typography.titleLarge)
+                    Text("BQ Pro Edit · BQ Sqwad Technologies", style = MaterialTheme.typography.labelSmall)
                 }
-                OutlinedButton(onClick = { history.undo()?.let { project = it; store.save(it) } }, enabled = history.canUndo) {
-                    Text("Undo")
-                }
-                Spacer(Modifier.width(6.dp))
-                OutlinedButton(onClick = { history.redo()?.let { project = it; store.save(it) } }, enabled = history.canRedo) {
-                    Text("Redo")
-                }
+                OutlinedButton(onClick = { showRename = true }) { Text("Rename") }
+                Spacer(Modifier.width(4.dp))
+                OutlinedButton(onClick = { history.undo()?.let { project = it; store.save(it) } }, enabled = history.canUndo) { Text("Undo") }
+                Spacer(Modifier.width(4.dp))
+                OutlinedButton(onClick = { history.redo()?.let { project = it; store.save(it) } }, enabled = history.canRedo) { Text("Redo") }
             }
 
-            Spacer(Modifier.height(10.dp))
-            Box(
-                modifier = Modifier.fillMaxWidth().weight(1f).background(MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                AndroidView(
-                    modifier = Modifier.fillMaxSize(),
-                    factory = { PlayerView(it).apply { player = player; useController = true } }
-                )
-                if (project.clips.isEmpty()) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.align(Alignment.Center)
-                    ) {
-                        Image(
-                            painter = painterResource(R.drawable.bq_pro_edit_logo),
-                            contentDescription = null,
-                            modifier = Modifier.width(88.dp).height(88.dp).padding(bottom = 8.dp)
-                        )
-                        Text("Import videos to begin", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.weight(1f).fillMaxWidth()) {
+                Column(Modifier.weight(1.7f).fillMaxSize()) {
+                    Box(Modifier.weight(1f).fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+                        AndroidView(Modifier.fillMaxSize(), factory = { PlayerView(it).apply { player = player; useController = false } })
+                        if (project.clips.none { it.mediaType == BqMediaType.VIDEO }) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Image(painterResource(com.bqsqwad.proedit.R.drawable.bq_pro_edit_logo), null, Modifier.width(72.dp).height(72.dp))
+                                Text("Import video to start editing")
+                            }
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Button(onClick = { if (player.isPlaying) player.pause() else player.play() }, enabled = project.clips.any { it.mediaType == BqMediaType.VIDEO }) { Text(if (isPlaying) "Pause" else "Play") }
+                        Spacer(Modifier.width(6.dp))
+                        Text("${position / 1000}s / ${duration / 1000}s")
+                        Slider(value = position.coerceIn(0L, duration).toFloat(), onValueChange = { position = it.toLong(); player.seekTo(position) }, valueRange = 0f..duration.toFloat(), Modifier.weight(1f).padding(horizontal = 8.dp))
+                    }
+                    HorizontalDivider()
+                    Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()).padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Button(onClick = { picker.launch(arrayOf("video/*", "image/*", "audio/*")) }) { Text("Import Media") }
+                        OutlinedButton(onClick = {
+                            val id = project.selectedClipId ?: return@OutlinedButton
+                            val clip = project.clips.firstOrNull { it.id == id } ?: return@OutlinedButton
+                            val pair = BqTimelineOps.split(clip, position)
+                            if (pair == null) status = "Move the playhead inside the selected clip to split"
+                            else {
+                                val index = project.clips.indexOfFirst { it.id == id }
+                                val list = project.clips.toMutableList().apply { removeAt(index); add(index, pair.first); add(index + 1, pair.second) }
+                                commit(project.copy(clips = list, selectedClipId = pair.second.id))
+                            }
+                        }, enabled = project.selectedClipId != null) { Text("Split") }
+                        OutlinedButton(onClick = {
+                            val id = project.selectedClipId ?: return@OutlinedButton
+                            val clip = project.clips.firstOrNull { it.id == id } ?: return@OutlinedButton
+                            val copy = BqTimelineOps.duplicate(clip)
+                            val index = project.clips.indexOfFirst { it.id == id }
+                            val list = project.clips.toMutableList().apply { add(index + 1, copy) }
+                            commit(project.copy(clips = list, selectedClipId = copy.id))
+                        }, enabled = project.selectedClipId != null) { Text("Duplicate") }
+                        OutlinedButton(onClick = {
+                            val id = project.selectedClipId ?: return@OutlinedButton
+                            val list = project.clips.filterNot { it.id == id }
+                            commit(project.copy(clips = list, selectedClipId = list.firstOrNull()?.id))
+                            player.stop(); player.clearMediaItems()
+                        }, enabled = project.selectedClipId != null) { Text("Delete") }
+                        Button(onClick = {
+                            if (exportBusy) return@Button
+                            exportBusy = true; status = "Exporting MP4…"
+                            engine.exportProject(project, BqExportConfig(), onStarted = {}, onProgress = {}, onCompleted = { file -> saveToGallery(context, file); exportBusy = false; status = "Export complete" }, onError = { exportBusy = false; status = "Export failed: ${it.message ?: "unknown error"}" })
+                        }, enabled = project.clips.any { it.mediaType == BqMediaType.VIDEO } && !exportBusy) { Text(if (exportBusy) "Exporting…" else "Export MP4") }
+                        if (exportBusy) OutlinedButton(onClick = { engine.cancelExport(); exportBusy = false; status = "Export cancelled" }) { Text("Cancel") }
+                    }
+                    Text("Timeline · ${project.clips.size} clips", style = MaterialTheme.typography.titleMedium, Modifier.padding(vertical = 4.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                        items(project.clips, key = { it.id }) { clip ->
+                            Card(onClick = { selectClip(clip) }) {
+                                Column(Modifier.padding(9.dp).width(150.dp)) {
+                                    Text(if (clip.id == project.selectedClipId) "● ${clip.name}" else clip.name, maxLines = 1)
+                                    Text("${clip.mediaType} · ${clip.speed}×", style = MaterialTheme.typography.labelSmall)
+                                    Text("${clip.startMs}–${clip.endMs ?: "end"} ms", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
                     }
                 }
-            }
 
-            if (duration > 1L && project.clips.isNotEmpty()) {
-                Slider(
-                    value = position.coerceIn(0L, duration).toFloat(),
-                    onValueChange = {
-                        position = it.toLong()
-                        player.seekTo(position)
-                    },
-                    valueRange = 0f..duration.toFloat(),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Text("${position / 1000}s / ${duration / 1000}s", style = MaterialTheme.typography.labelSmall)
-            }
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.horizontalScroll(rememberScrollState())
-            ) {
-                Button(onClick = { picker.launch(arrayOf("video/*")) }) { Text("Import Videos") }
-                Button(onClick = { if (player.isPlaying) player.pause() else player.play() }) {
-                    Text(if (isPlaying) "Pause" else "Play")
-                }
-                OutlinedButton(onClick = {
-                    val id = project.selectedClipId ?: return@OutlinedButton
-                    val clip = project.clips.firstOrNull { it.id == id } ?: return@OutlinedButton
-                    commit(project.copy(clips = project.clips.map { if (it.id == id) it.copy(startMs = player.currentPosition) else it }))
-                }, enabled = project.selectedClipId != null) { Text("Set In") }
-                OutlinedButton(onClick = {
-                    val id = project.selectedClipId ?: return@OutlinedButton
-                    val clip = project.clips.firstOrNull { it.id == id } ?: return@OutlinedButton
-                    val out = player.currentPosition.coerceAtLeast(clip.startMs + 1L)
-                    commit(project.copy(clips = project.clips.map { if (it.id == id) it.copy(endMs = out) else it }))
-                }, enabled = project.selectedClipId != null) { Text("Set Out") }
-                OutlinedButton(onClick = {
-                    val id = project.selectedClipId ?: return@OutlinedButton
-                    val clip = project.clips.firstOrNull { it.id == id } ?: return@OutlinedButton
-                    val copy = clip.copy(id = UUID.randomUUID().toString(), name = "${clip.name} copy")
-                    val index = project.clips.indexOfFirst { it.id == id }
-                    val nextClips = project.clips.toMutableList().apply { add((index + 1).coerceAtMost(size), copy) }
-                    commit(project.copy(clips = nextClips, selectedClipId = copy.id))
-                    loadClip(copy)
-                }, enabled = project.selectedClipId != null) { Text("Duplicate") }
-                OutlinedButton(onClick = {
-                    val id = project.selectedClipId ?: return@OutlinedButton
-                    val index = project.clips.indexOfFirst { it.id == id }
-                    if (index > 0) {
-                        val nextClips = project.clips.toMutableList()
-                        val item = nextClips.removeAt(index)
-                        nextClips.add(index - 1, item)
-                        commit(project.copy(clips = nextClips))
-                    }
-                }, enabled = project.selectedClipId != null) { Text("← Move") }
-                OutlinedButton(onClick = {
-                    val id = project.selectedClipId ?: return@OutlinedButton
-                    val index = project.clips.indexOfFirst { it.id == id }
-                    if (index >= 0 && index < project.clips.lastIndex) {
-                        val nextClips = project.clips.toMutableList()
-                        val item = nextClips.removeAt(index)
-                        nextClips.add(index + 1, item)
-                        commit(project.copy(clips = nextClips))
-                    }
-                }, enabled = project.selectedClipId != null) { Text("Move →") }
-                OutlinedButton(onClick = {
-                    val id = project.selectedClipId ?: return@OutlinedButton
-                    val next = project.clips.filterNot { it.id == id }
-                    commit(project.copy(clips = next, selectedClipId = next.firstOrNull()?.id))
-                    player.stop(); player.clearMediaItems()
-                }, enabled = project.selectedClipId != null) { Text("Delete") }
-                Button(onClick = {
-                    if (project.clips.isEmpty()) return@Button
-                    exportState = "Exporting…"
-                    engine.exportProject(project,
-                        onStarted = { },
-                        onCompleted = { file ->
-                            saveToGallery(context, file)
-                            exportState = "Export complete"
-                        },
-                        onError = { exportState = "Export failed: ${it.errorCodeName}" }
-                    )
-                }, enabled = project.clips.isNotEmpty() && exportState == null) { Text("Export MP4") }
-            }
-
-            project.selectedClipId?.let { id ->
-                val clip = project.clips.firstOrNull { it.id == id }
-                if (clip != null) {
-                    Text("Selected: ${clip.name}", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                        OutlinedButton(onClick = {
-                            commit(project.copy(clips = project.clips.map { if (it.id == id) it.copy(rotationDegrees = it.rotationDegrees + 90f) else it }))
-                        }) { Text("Rotate 90°") }
-                        OutlinedButton(onClick = {
-                            val speed = (clip.speed + 0.25f).coerceAtMost(4f)
-                            commit(project.copy(clips = project.clips.map { if (it.id == id) it.copy(speed = speed) else it }))
-                        }) { Text("Speed +") }
-                        OutlinedButton(onClick = {
-                            val speed = (clip.speed - 0.25f).coerceAtLeast(0.25f)
-                            commit(project.copy(clips = project.clips.map { if (it.id == id) it.copy(speed = speed) else it }))
-                        }) { Text("Speed −") }
-                        OutlinedButton(onClick = {
-                            val scale = (clip.scale + 0.1f).coerceAtMost(4f)
-                            commit(project.copy(clips = project.clips.map { if (it.id == id) it.copy(scale = scale) else it }))
-                        }) { Text("Scale +") }
-                        OutlinedButton(onClick = {
-                            val scale = (clip.scale - 0.1f).coerceAtLeast(0.25f)
-                            commit(project.copy(clips = project.clips.map { if (it.id == id) it.copy(scale = scale) else it }))
-                        }) { Text("Scale −") }
-                        Text("${clip.speed}× · ${clip.scale}× · ${clip.rotationDegrees}°", modifier = Modifier.padding(top = 10.dp))
-                    }
-                }
-            }
-
-            exportState?.let {
-                Text(it, modifier = Modifier.padding(top = 6.dp), color = MaterialTheme.colorScheme.primary)
-                if (it != "Exporting…") {
-                    OutlinedButton(onClick = { exportState = null }, modifier = Modifier.padding(top = 4.dp)) { Text("Dismiss") }
-                }
-            }
-
-            Text("Timeline", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 10.dp, bottom = 6.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(project.clips, key = { it.id }) { clip ->
-                    Card(onClick = {
-                        commit(project.copy(selectedClipId = clip.id))
-                        loadClip(clip)
-                    }) {
-                        Column(modifier = Modifier.padding(10.dp)) {
-                            Text(if (clip.id == project.selectedClipId) "▶ ${clip.name}" else clip.name, maxLines = 1)
-                            Text("In ${clip.startMs / 1000}s · Out ${clip.endMs?.div(1000) ?: "end"}", style = MaterialTheme.typography.labelSmall)
+                Spacer(Modifier.width(8.dp))
+                Card(Modifier.weight(0.9f).fillMaxSize()) {
+                    Column(Modifier.fillMaxSize()) {
+                        TabRow(selectedTabIndex = inspectorTab) {
+                            listOf("Inspector", "Effects", "FX", "Media").forEachIndexed { index, title -> Tab(selected = inspectorTab == index, onClick = { inspectorTab = index }, text = { Text(title) }) }
+                        }
+                        val selected = project.clips.firstOrNull { it.id == project.selectedClipId }
+                        when (inspectorTab) {
+                            0 -> Inspector(selected, project, ::commit)
+                            1 -> EffectsPanel(selected, project, ::commit)
+                            2 -> SuperpowerPanel(selected, project, ::commit)
+                            else -> MediaPanel(project, ::selectClip)
                         }
                     }
                 }
             }
-
-            Text("BQ Superpower FX", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 10.dp, bottom = 6.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(BqSuperpowerFxCatalog.effects) { effect ->
-                    OutlinedButton(onClick = { }) { Text(effect.name) }
-                }
-            }
+            status?.let { Text(it, color = MaterialTheme.colorScheme.primary, Modifier.padding(top = 5.dp)) }
         }
+    }
+
+    if (showRename) {
+        var value by remember(project.id) { mutableStateOf(project.name) }
+        AlertDialog(onDismissRequest = { showRename = false }, title = { Text("Rename project") }, text = { androidx.compose.material3.OutlinedTextField(value, { value = it }, label = { Text("Project name") }) }, confirmButton = { TextButton(onClick = { commit(project.copy(name = value.trim().ifBlank { "Untitled Project" })); showRename = false }) { Text("Save") } }, dismissButton = { TextButton(onClick = { showRename = false }) { Text("Cancel") } })
+    }
+}
+
+@Composable
+private fun Inspector(selected: BqClip?, project: BqProject, commit: (BqProject) -> Unit) {
+    if (selected == null) { Text("Select a clip from the timeline", Modifier.padding(16.dp)); return }
+    LazyColumn(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item { Text(selected.name, style = MaterialTheme.typography.titleMedium) }
+        item { Text("Speed ${selected.speed}×") }
+        item { Slider(selected.speed, { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(speed = v) else it })) }, .25f..4f) }
+        item { Text("Scale ${selected.scale}") }
+        item { Slider(selected.scale, { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(scale = v) else it })) }, .25f..3f) }
+        item { Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { OutlinedButton(onClick = { commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(rotationDegrees = it.rotationDegrees + 90f) else it })) }) { Text("Rotate +90°") }; OutlinedButton(onClick = { commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(rotationDegrees = 0f) else it })) }) { Text("Reset") } } }
+        item { Text("Position X ${selected.x}") }
+        item { Slider(selected.x, { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(x = v) else it })) }, -1f..1f) }
+        item { Text("Position Y ${selected.y}") }
+        item { Slider(selected.y, { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(y = v) else it })) }, -1f..1f) }
+        item { Text("Volume ${selected.volume}") }
+        item { Slider(selected.volume, { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(volume = v) else it })) }, 0f..2f) }
+        item { Text("Non-destructive: source media is never modified.", style = MaterialTheme.typography.labelSmall) }
+    }
+}
+
+@Composable
+private fun EffectsPanel(selected: BqClip?, project: BqProject, commit: (BqProject) -> Unit) {
+    if (selected == null) { Text("Select a clip first", Modifier.padding(16.dp)); return }
+    val kinds = BqEffectKind.entries
+    LazyColumn(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        item { Text("Color / image effects", style = MaterialTheme.typography.titleMedium) }
+        items(kinds) { kind ->
+            OutlinedButton(onClick = {
+                val effect = BqEffectLayer(UUID.randomUUID().toString(), kind.name.replace('_', ' '), kind)
+                commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(effects = it.effects + effect) else it }))
+            }, Modifier.fillMaxWidth()) { Text("Add ${kind.name.lowercase()}") }
+        }
+        item { Text("Stacked effects: ${selected.effects.size}", style = MaterialTheme.typography.labelSmall) }
+    }
+}
+
+@Composable
+private fun SuperpowerPanel(selected: BqClip?, project: BqProject, commit: (BqProject) -> Unit) {
+    if (selected == null) { Text("Select a clip first", Modifier.padding(16.dp)); return }
+    LazyColumn(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        item { Text("BQ Superpower FX", style = MaterialTheme.typography.titleMedium) }
+        item { Text("Tracking/compositing state is stored non-destructively. Rendering modules can consume the same FX layer state.", style = MaterialTheme.typography.labelSmall) }
+        items(BqSuperpowerFxCatalog.effects) { effect ->
+            OutlinedButton(onClick = {
+                val fx = com.bqsqwad.proedit.editor.BqFxLayer(UUID.randomUUID().toString(), effect.kind)
+                commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(fxLayers = it.fxLayers + fx) else it }))
+            }, Modifier.fillMaxWidth()) { Text(effect.name) }
+        }
+        item { Text("Configured layers: ${selected.fxLayers.size}", style = MaterialTheme.typography.labelSmall) }
+    }
+}
+
+@Composable
+private fun MediaPanel(project: BqProject, onSelect: (BqClip) -> Unit) {
+    LazyColumn(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        item { Text("Project Media Bin", style = MaterialTheme.typography.titleMedium) }
+        items(project.clips, key = { it.id }) { clip -> Card(onClick = { onSelect(clip) }) { Column(Modifier.padding(9.dp).fillMaxWidth()) { Text(clip.name); Text(clip.mediaType.name, style = MaterialTheme.typography.labelSmall); Text(clip.uri.toString(), style = MaterialTheme.typography.labelSmall, maxLines = 2) } } }
     }
 }
 
 private fun saveToGallery(context: android.content.Context, file: File) {
-    val values = ContentValues().apply {
-        put(MediaStore.Video.Media.DISPLAY_NAME, "BQ_Pro_Edit_${System.currentTimeMillis()}.mp4")
-        put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
-        put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/BQ Pro Edit")
-        put(MediaStore.Video.Media.IS_PENDING, 1)
-    }
+    val values = ContentValues().apply { put(MediaStore.Video.Media.DISPLAY_NAME, "BQ_Pro_Edit_${System.currentTimeMillis()}.mp4"); put(MediaStore.Video.Media.MIME_TYPE, "video/mp4"); put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/BQ Pro Edit"); put(MediaStore.Video.Media.IS_PENDING, 1) }
     val resolver = context.contentResolver
     val uri = resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values) ?: return
     try {
-        resolver.openOutputStream(uri)?.use { output -> file.inputStream().use { it.copyTo(output) } }
-        values.clear()
-        values.put(MediaStore.Video.Media.IS_PENDING, 0)
-        resolver.update(uri, values, null, null)
-    } catch (_: Exception) {
-        resolver.delete(uri, null, null)
-    }
+        resolver.openOutputStream(uri)?.use { output -> file.inputStream().use { it.copyTo(output) } } ?: error("Unable to open gallery output")
+        values.clear(); values.put(MediaStore.Video.Media.IS_PENDING, 0); resolver.update(uri, values, null, null)
+    } catch (e: Exception) { resolver.delete(uri, null, null) }
 }

@@ -12,8 +12,8 @@ android {
         applicationId = "com.bqsqwad.proedit"
         minSdk = 23
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -24,13 +24,9 @@ android {
 
     buildFeatures { compose = true }
 
-    testOptions {
-        unitTests.isReturnDefaultValues = true
-    }
+    testOptions { unitTests.isReturnDefaultValues = true }
 
-    packaging {
-        resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
-    }
+    packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
 }
 
 dependencies {
