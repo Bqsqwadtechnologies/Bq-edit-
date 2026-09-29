@@ -214,6 +214,24 @@ class BqMediaEngine(private val context: Context) {
 
     private fun buildVideoEffects(clip: BqClip, plan: BqRenderPlan): MutableList<androidx.media3.common.Effect> {
         val effects = buildVideoEffects(clip)
+        plan.subjectTrack?.let { track ->
+            plan.subjectTarget?.let { target ->
+                val detection = track.detectionAt(projectTimeMs(plan, clip))
+                if (detection != null && detection.trackingId == target.subjectId && detection.confidence >= target.confidenceThreshold) {
+                    val mask = BqSubjectMaskFrame(
+                        timeUs = detection.frameTimeUs,
+                        width = 1,
+                        height = 1,
+                        confidence = floatArrayOf(detection.confidence),
+                        subjectId = target.subjectId,
+                        part = target.part,
+                        feather = target.feather,
+                        expansion = target.expansion
+                    )
+                    effects += BqSubjectMaskEffect(mask)
+                }
+            }
+        }
         plan.blend.forEach { layer -> if (layer.opacity < 0.999f) effects += AlphaScale(layer.opacity.coerceIn(0f, 1f)) }
         plan.motionBlur?.takeIf { it.enabled }?.let { effects += GaussianBlur((it.shutterAngle / 360f * 8f).coerceIn(0.1f, 12f)) }
         if (plan.powerPresets.isNotEmpty() || plan.particles.isNotEmpty()) effects += GaussianBlur(0.6f)
@@ -233,6 +251,8 @@ class BqMediaEngine(private val context: Context) {
         }
         return effects
     }
+
+    private fun projectTimeMs(plan: BqRenderPlan, clip: BqClip): Long = clip.startMs
 
     private fun clipDurationMs(clip: BqClip): Long =
         ((clip.endMs ?: (clip.startMs + DEFAULT_IMAGE_DURATION_MS)) - clip.startMs).coerceAtLeast(1L)
