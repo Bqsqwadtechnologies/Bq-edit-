@@ -27,6 +27,20 @@ class BqEditorCoreTest {
         assertNull(BqTimelineOps.split(clip, 10_000))
     }
 
+    @Test fun trimKeepsClipInsideRequestedRange() {
+        val clip = BqClip("a", uri, "clip", 0, 10_000)
+        val trimmed = BqTimelineOps.trim(clip, 2_000, 7_500)
+        assertNotNull(trimmed)
+        assertEquals(2_000, trimmed!!.startMs)
+        assertEquals(7_500, trimmed.endMs)
+    }
+
+    @Test fun invalidTrimIsRejected() {
+        val clip = BqClip("a", uri, "clip", 0, 10_000)
+        assertNull(BqTimelineOps.trim(clip, 7_500, 2_000))
+        assertNull(BqTimelineOps.trim(clip, 0, 10_001))
+    }
+
     @Test fun keyframeInterpolationIsLinear() {
         val keys = listOf(BqKeyframe(0, 0f), BqKeyframe(1_000, 10f))
         assertEquals(5f, BqInterpolationEngine.sample(keys, 500, 0f), 0.001f)
