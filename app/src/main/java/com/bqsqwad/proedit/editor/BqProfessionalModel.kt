@@ -263,7 +263,8 @@ object BqProjectValidator {
         project.advanced.cornerPins.forEach { (id,pin) ->
             listOf(pin.topLeft,pin.topRight,pin.bottomRight,pin.bottomLeft).forEach { p -> if (!p.x.isFinite() || !p.y.isFinite()) add("Corner pin $id: invalid point") }
         }
-        project.advanced.proxy.let { if (it.enabled && (it.width <= 0 || it.height <= 0 || it.bitrate <= 0)) add("Proxy settings are invalid") }\n        project.advanced.exportPresets.forEach { if (it.width <= 0 || it.height <= 0 || it.fps !in 1..120 || it.bitrate <= 0) add("Export preset ${it.name} is invalid") }
+        project.advanced.proxy.let { if (it.enabled && (it.width <= 0 || it.height <= 0 || it.bitrate <= 0)) add("Proxy settings are invalid") }
+        project.advanced.exportPresets.forEach { if (it.width <= 0 || it.height <= 0 || it.fps !in 1..120 || it.bitrate <= 0) add("Export preset ${it.name} is invalid") }
     }
 }
 
