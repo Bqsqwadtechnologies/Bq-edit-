@@ -11,5 +11,6 @@ data class BqRenderPlan(
     val powerPresets: List<BqPowerPreset> = emptyList(),
     val compositions: List<BqFxComposition> = emptyList(),
     val proxy: BqProxySettings? = null,
-    val masks: List<BqMask> = emptyList()
+    val masks: List<BqMask> = emptyList(),
+    val trackedAnchors: Map<String, BqPoint> = emptyMap()
 )
