@@ -170,7 +170,7 @@ jobs:
           path: build/ci-diagnostics/
           if-no-files-found: warn
       - name: Upload debug APK
-        if: always()
+        if: always() && hashFiles('app/build/outputs/apk/debug/*.apk') != ''
         uses: actions/upload-artifact@v5
         with:
           name: bq-pro-edit-debug-apk
@@ -178,7 +178,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload release APK
-        if: always()
+        if: always() && hashFiles('app/build/outputs/apk/release/*.apk') != ''
         uses: actions/upload-artifact@v5
         with:
           name: bq-pro-edit-release-apk
@@ -186,7 +186,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload release AAB
-        if: always()
+        if: always() && hashFiles('app/build/outputs/bundle/release/*.aab') != ''
         uses: actions/upload-artifact@v5
         with:
           name: bq-pro-edit-release-aab
