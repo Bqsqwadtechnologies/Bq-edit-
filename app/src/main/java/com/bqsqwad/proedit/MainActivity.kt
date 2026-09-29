@@ -52,6 +52,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.graphics.Color
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -103,6 +105,8 @@ private fun BqProEditApp() {
     var inspectorTab by remember { mutableStateOf(0) }
     var exportBusy by remember { mutableStateOf(false) }
     var exportConfig by remember { mutableStateOf(BqExportConfig()) }
+    var showGuide by remember { mutableStateOf(false) }
+    var guideFeature by remember { mutableStateOf<BqGuideFeature?>(null) }
     val srtImport = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) runCatching { context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: "" }.onSuccess { text -> val caps = BqSubtitleSrt.import(text); if (caps.isEmpty()) status = "No valid SRT captions found" else { commit(project.copy(captions = caps)); status = "Imported ${caps.size} caption(s)" } }.onFailure { status = "SRT import failed" } }
     val srtExport = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/x-subrip")) { uri -> if (uri != null) runCatching { context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(BqSubtitleSrt.export(project.captions)) } ?: error("Unable to write SRT") }.onSuccess { status = "SRT exported" }.onFailure { status = "SRT export failed" } }
 
@@ -186,6 +190,8 @@ private fun BqProEditApp() {
                     Text(project.name, style = MaterialTheme.typography.titleLarge)
                     Text("BQ Pro Edit · BQ Sqwad Technologies", style = MaterialTheme.typography.labelSmall)
                 }
+                OutlinedButton(onClick = { showGuide = true }) { Text("Guide") }
+                Spacer(Modifier.width(4.dp))
                 OutlinedButton(onClick = { showRename = true }) { Text("Rename") }
                 Spacer(Modifier.width(4.dp))
                 OutlinedButton(onClick = { showNewProject = true }) { Text("New") }
@@ -276,6 +282,17 @@ private fun BqProEditApp() {
             }
             status?.let { Text(it, color = MaterialTheme.colorScheme.primary, Modifier.padding(top = 5.dp)) }
         }
+    }
+
+    if (showGuide) {
+        BqFeatureGuide(
+            onDismiss = { showGuide = false },
+            onShow = { feature -> guideFeature = feature },
+            onCloseSpotlight = { guideFeature = null }
+        )
+    }
+    guideFeature?.let { feature ->
+        BqFeatureSpotlight(feature = feature, onDismiss = { guideFeature = null })
     }
 
     if (showRename) {
@@ -682,4 +699,93 @@ private fun saveToGallery(context: android.content.Context, file: File) {
         resolver.openOutputStream(uri)?.use { output -> file.inputStream().use { it.copyTo(output) } } ?: error("Unable to open gallery output")
         values.clear(); values.put(MediaStore.Video.Media.IS_PENDING, 0); resolver.update(uri, values, null, null)
     } catch (e: Exception) { resolver.delete(uri, null, null) }
+}
+
+
+private enum class BqGuideFeature(
+    val title: String,
+    val color: Color,
+    val how: String
+) {
+    IMPORT("Import media", Color(0xFF1565C0), "Tap Import in the Media area, choose video, photo or audio, then select the clip in the timeline."),
+    TIMELINE("Timeline editing", Color(0xFF6A1B9A), "Select a clip, then use the editor controls to trim, split, duplicate, move and adjust timing. Undo and Redo restore earlier states."),
+    TRANSFORM("Transform & framing", Color(0xFF00838F), "Use Inspector to change scale, X/Y position, rotation, opacity and clip framing without changing the source file."),
+    SPEED("Speed & time", Color(0xFF2E7D32), "Use the Speed slider in Inspector. Keyframes can animate effect values over the playhead timeline."),
+    COLOR("Color grading", Color(0xFFEF6C00), "Open Color and adjust exposure, contrast, highlights, shadows, whites, blacks, saturation, temperature and tint."),
+    EFFECTS("Effects", Color(0xFFC62828), "Open Effects, add an effect, turn it on or off, change its amount and remove it. The stack is saved with the project."),
+    CHROMA("Chroma key & masks", Color(0xFF00695C), "Open Chroma, enable green-screen removal, tune similarity/softness/spill and add non-destructive masks."),
+    SUPERPOWER("Person-locked Superpower FX", Color(0xFFAD1457), "Open FX, add a power, choose the tracked person and body part, then use the timeline to control when the power is active."),
+    AUDIO("Audio", Color(0xFF4527A0), "Use Inspector audio controls for volume, mute, solo and fades. Imported audio can be kept as project media."),
+    CAPTIONS("Captions & SRT", Color(0xFF283593), "Open Captions, add text at the playhead, or import/export SRT. Captions remain editable in the project."),
+    ADVANCED("Professional tools", Color(0xFF37474F), "Open Advanced for proxy settings, motion blur, beat markers, export presets, transitions and the advanced compositor state."),
+    EXPORT("Export", Color(0xFF7B1FA2), "Choose FHD/HD/FHD60, validate the project, then Export MP4. Progress can be cancelled and completed video is saved to the gallery.")
+}
+
+@Composable
+private fun BqFeatureGuide(
+    onDismiss: () -> Unit,
+    onShow: (BqGuideFeature) -> Unit,
+    onCloseSpotlight: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxSize().padding(18.dp),
+            color = MaterialTheme.colorScheme.background,
+            tonalElevation = 8.dp
+        ) {
+            Column(Modifier.fillMaxSize().padding(14.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("BQ Pro Edit — How to use", style = MaterialTheme.typography.headlineSmall)
+                        Text("Every feature has a quick explanation. Tap Show Me to spotlight it.", style = MaterialTheme.typography.bodySmall)
+                    }
+                    TextButton(onClick = onDismiss) { Text("Close") }
+                }
+                LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(BqGuideFeature.entries) { feature ->
+                        Card(Modifier.fillMaxWidth()) {
+                            Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.width(8.dp).height(54.dp).background(feature.color))
+                                Spacer(Modifier.width(10.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(feature.title, style = MaterialTheme.typography.titleSmall)
+                                    Text(feature.how, style = MaterialTheme.typography.bodySmall)
+                                }
+                                Spacer(Modifier.width(6.dp))
+                                OutlinedButton(onClick = { onShow(feature) }) { Text("Show Me") }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BqFeatureSpotlight(feature: BqGuideFeature, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.82f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Card(
+                Modifier.fillMaxWidth(0.92f),
+                colors = androidx.compose.material3.CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            ) {
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(Modifier.fillMaxWidth().height(8.dp).background(feature.color))
+                    Text(feature.title, style = MaterialTheme.typography.headlineSmall)
+                    Text(feature.how, style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "Spotlight mode: the rest of the screen is dimmed so this feature is the only bright instruction box.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Button(onClick = onDismiss, Modifier.fillMaxWidth()) { Text("Got it") }
+                }
+            }
+        }
+    }
 }
