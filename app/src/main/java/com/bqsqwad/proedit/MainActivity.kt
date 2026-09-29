@@ -100,6 +100,7 @@ private fun BqProEditApp() {
     var showNewProject by remember { mutableStateOf(false) }
     var inspectorTab by remember { mutableStateOf(0) }
     var exportBusy by remember { mutableStateOf(false) }
+    var exportConfig by remember { mutableStateOf(BqExportConfig()) }
     val srtImport = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) runCatching { context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: "" }.onSuccess { text -> val caps = BqSubtitleSrt.import(text); if (caps.isEmpty()) status = "No valid SRT captions found" else { commit(project.copy(captions = caps)); status = "Imported ${caps.size} caption(s)" } }.onFailure { status = "SRT import failed" } }
     val srtExport = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/x-subrip")) { uri -> if (uri != null) runCatching { context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(BqSubtitleSrt.export(project.captions)) } ?: error("Unable to write SRT") }.onSuccess { status = "SRT exported" }.onFailure { status = "SRT export failed" } }
 
@@ -112,10 +113,11 @@ private fun BqProEditApp() {
     }
 
     fun selectClip(clip: BqClip) {
-        commit(project.copy(selectedClipId = clip.id))
+        val selectedProject = project.copy(selectedClipId = clip.id)
+        commit(selectedProject)
         if (clip.mediaType == BqMediaType.VIDEO) {
             runCatching {
-                player.setVideoEffects(engine.videoEffects(project, clip))
+                player.setVideoEffects(engine.videoEffects(selectedProject, clip))
                 player.setMediaItem(engine.mediaItem(clip), clip.startMs)
                 player.prepare()
                 player.playWhenReady = false
@@ -219,81 +221,19 @@ private fun BqProEditApp() {
                     }
                     HorizontalDivider()
                     Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()).padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Button(onClick = { picker.launch(arrayOf("video/*", "image/*", "audio/*")) }) { Text("Import Media") }
-                        OutlinedButton(onClick = {
-                            val id = project.selectedClipId ?: return@OutlinedButton
-                            val clip = project.clips.firstOrNull { it.id == id } ?: return@OutlinedButton
-                            val effectiveEnd = clip.endMs ?: project.assets.firstOrNull { it.uri == clip.uri }?.durationMs ?: 0L
-                            val pair = BqTimelineOps.split(clip.copy(endMs = effectiveEnd.takeIf { it > clip.startMs }), position)
-                            if (pair == null) status = "Move the playhead inside the selected clip to split"
-                            else {
-                                val index = project.clips.indexOfFirst { it.id == id }
-                                val list = project.clips.toMutableList().apply { removeAt(index); add(index, pair.first); add(index + 1, pair.second) }
-                                commit(project.copy(clips = list, selectedClipId = pair.second.id))
-                            }
-                        }, enabled = project.selectedClipId != null) { Text("Split") }
-                        OutlinedButton(onClick = {
-                            val id = project.selectedClipId ?: return@OutlinedButton
-                            val clip = project.clips.firstOrNull { it.id == id } ?: return@OutlinedButton
-                            val copy = BqTimelineOps.duplicate(clip)
-                            val index = project.clips.indexOfFirst { it.id == id }
-                            val list = project.clips.toMutableList().apply { add(index + 1, copy) }
-                            commit(project.copy(clips = list, selectedClipId = copy.id))
-                        }, enabled = project.selectedClipId != null) { Text("Duplicate") }
-                        OutlinedButton(onClick = {
-                            val id = project.selectedClipId ?: return@OutlinedButton
-                            val index = project.clips.indexOfFirst { it.id == id }
-                            if (index > 0) {
-                                val list = project.clips.toMutableList()
-                                val moved = list.removeAt(index)
-                                list.add(index - 1, moved)
-                                commit(project.copy(clips = list))
-                            }
-                        }, enabled = project.selectedClipId?.let { id -> project.clips.indexOfFirst { it.id == id } > 0 } == true) { Text("← Move") }
-                        OutlinedButton(onClick = {
-                            val id = project.selectedClipId ?: return@OutlinedButton
-                            val index = project.clips.indexOfFirst { it.id == id }
-                            if (index >= 0 && index < project.clips.lastIndex) {
-                                val list = project.clips.toMutableList()
-                                val moved = list.removeAt(index)
-                                list.add(index + 1, moved)
-                                commit(project.copy(clips = list))
-                            }
-                        }, enabled = project.selectedClipId?.let { id -> project.clips.indexOfFirst { it.id == id } >= 0 && project.clips.indexOfFirst { it.id == id } < project.clips.lastIndex } == true) { Text("Move →") }
-                        OutlinedButton(onClick = {
-                            val id = project.selectedClipId ?: return@OutlinedButton
-                            val clip = project.clips.firstOrNull { it.id == id } ?: return@OutlinedButton
-                            if (position <= clip.startMs) status = "Move the playhead after the clip start to trim"
-                            else commit(project.copy(clips = project.clips.map { if (it.id == id) it.copy(startMs = position.coerceAtMost((it.endMs ?: Long.MAX_VALUE) - 1L)) else it }))
-                        }, enabled = project.selectedClipId != null) { Text("Trim In") }
-                        OutlinedButton(onClick = {
-                            val id = project.selectedClipId ?: return@OutlinedButton
-                            val clip = project.clips.firstOrNull { it.id == id } ?: return@OutlinedButton
-                            val end = clip.endMs ?: project.assets.firstOrNull { it.uri == clip.uri }?.durationMs
-                            if (end == null || position <= clip.startMs || position >= end) status = "Move the playhead inside the clip to trim its end"
-                            else commit(project.copy(clips = project.clips.map { if (it.id == id) it.copy(endMs = position) else it }))
-                        }, enabled = project.selectedClipId != null) { Text("Trim Out") }
-                        OutlinedButton(onClick = {
-                            val id = project.selectedClipId ?: return@OutlinedButton
-                            val list = project.clips.filterNot { it.id == id }
-                            commit(project.copy(clips = list, selectedClipId = list.firstOrNull()?.id))
-                            player.stop(); player.clearMediaItems()
-                        }, enabled = project.selectedClipId != null) { Text("Delete") }
-                        OutlinedButton(onClick = {
-                            val clip = project.clips.firstOrNull { it.id == project.selectedClipId }
-                            if (clip == null) status = "Select a video clip first" else runCatching {
-                                val retriever = MediaMetadataRetriever()
-                                try {
-                                    retriever.setDataSource(context, clip.uri)
-                                    val bitmap = retriever.getFrameAtTime((position.coerceAtLeast(0L) + clip.startMs) * 1_000L, MediaMetadataRetriever.OPTION_CLOSEST) ?: error("No video frame available")
-                                    try { saveFrameToGallery(context, bitmap) } finally { bitmap.recycle() }
-                                } finally { retriever.release() }
-                            }.onSuccess { status = "Frame captured to Pictures/BQ Pro Edit" }.onFailure { status = "Frame capture failed: " + (it.message ?: "unknown error") }
-                        }, enabled = project.clips.any { it.mediaType == BqMediaType.VIDEO }) { Text("Capture Frame") }
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("Export:", style = MaterialTheme.typography.labelSmall)
+                            OutlinedButton(onClick = { exportConfig = BqExportConfig(1920,1080,30,12_000_000) }, enabled = !exportBusy) { Text("FHD 30") }
+                            OutlinedButton(onClick = { exportConfig = BqExportConfig(1280,720,30,8_000_000) }, enabled = !exportBusy) { Text("HD 30") }
+                            OutlinedButton(onClick = { exportConfig = BqExportConfig(1920,1080,60,20_000_000) }, enabled = !exportBusy) { Text("FHD 60") }
+                        }
                         Button(onClick = {
                             if (exportBusy) return@Button
-                            exportBusy = true; status = "Exporting MP4…"
-                            engine.exportProject(project, BqExportConfig(), onStarted = {}, onProgress = {}, onCompleted = { file -> saveToGallery(context, file); exportBusy = false; status = "Export complete" }, onError = { exportBusy = false; status = "Export failed: ${it.message ?: "unknown error"}" })
+                            val errors = BqProjectValidator.validate(project)
+                            if (errors.isNotEmpty()) { status = errors.first(); return@Button }
+                            exportBusy = true
+                            status = "Exporting " + exportConfig.width + "×" + exportConfig.height + " @ " + exportConfig.fps + "fps…"
+                            engine.exportProject(project, exportConfig, onStarted = {}, onProgress = {}, onCompleted = { file -> saveToGallery(context, file); exportBusy = false; status = "Export complete" }, onError = { exportBusy = false; status = "Export failed: " + (it.message ?: "unknown error") })
                         }, enabled = project.clips.any { it.mediaType == BqMediaType.VIDEO } && !exportBusy) { Text(if (exportBusy) "Exporting…" else "Export MP4") }
                         if (exportBusy) OutlinedButton(onClick = { engine.cancelExport(); exportBusy = false; status = "Export cancelled" }) { Text("Cancel") }
                     }
