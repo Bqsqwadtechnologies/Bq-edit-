@@ -105,7 +105,7 @@ private fun BqProEditApp() {
     var inspectorTab by remember { mutableStateOf(0) }
     var exportBusy by remember { mutableStateOf(false) }
     var exportConfig by remember { mutableStateOf(BqExportConfig()) }
-    var showGuide by remember { mutableStateOf(false) }
+    var showGuide by remember { mutableStateOf(!context.getSharedPreferences("bq_pro_edit_onboarding", 0).getBoolean("seen", false)) }
     var guideFeature by remember { mutableStateOf<BqGuideFeature?>(null) }
     val srtImport = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) runCatching { context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: "" }.onSuccess { text -> val caps = BqSubtitleSrt.import(text); if (caps.isEmpty()) status = "No valid SRT captions found" else { commit(project.copy(captions = caps)); status = "Imported ${caps.size} caption(s)" } }.onFailure { status = "SRT import failed" } }
     val srtExport = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/x-subrip")) { uri -> if (uri != null) runCatching { context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(BqSubtitleSrt.export(project.captions)) } ?: error("Unable to write SRT") }.onSuccess { status = "SRT exported" }.onFailure { status = "SRT export failed" } }
@@ -286,7 +286,7 @@ private fun BqProEditApp() {
 
     if (showGuide) {
         BqFeatureGuide(
-            onDismiss = { showGuide = false },
+            onDismiss = { showGuide = false; context.getSharedPreferences("bq_pro_edit_onboarding", 0).edit().putBoolean("seen", true).apply() },
             onShow = { feature -> guideFeature = feature },
             onCloseSpotlight = { guideFeature = null }
         )
