@@ -1,7 +1,7 @@
 package com.bqsqwad.proedit.editor
 
 /** Bounded undo/redo history for immutable project states. */
-class BqProjectHistory(initial: BqProject = BqProject(), private val maxEntries: Int = 100) {
+class BqProjectHistory(initial: BqProject = BqProject(), private val maxEntries: Int = 150) {
     private val undoStack = ArrayDeque<BqProject>().apply { addLast(initial) }
     private val redoStack = ArrayDeque<BqProject>()
 
