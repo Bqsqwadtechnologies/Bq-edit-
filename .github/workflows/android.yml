@@ -19,7 +19,7 @@ concurrency:
 jobs:
   verify-and-build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 30
     steps:
       - name: Checkout main only
         uses: actions/checkout@v7
@@ -38,6 +38,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '8.13'
+          cache-read-only: false
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
@@ -107,12 +108,12 @@ jobs:
           }
 
           if [ "$RUN_TESTS" != "false" ]; then
-            run_gradle "JVM unit tests" testDebugUnitTest.log gradle :app:testDebugUnitTest --stacktrace --continue --no-daemon
+            run_gradle "JVM unit tests" testDebugUnitTest.log gradle :app:testDebugUnitTest --stacktrace --no-daemon
           fi
 
-          run_gradle "Debug APK" assembleDebug.log gradle :app:assembleDebug --stacktrace --continue --no-daemon
-          run_gradle "Release APK" assembleRelease.log gradle :app:assembleRelease --stacktrace --continue --no-daemon
-          run_gradle "Release AAB" bundleRelease.log gradle :app:bundleRelease --stacktrace --continue --no-daemon
+          run_gradle "Debug APK" assembleDebug.log gradle :app:assembleDebug --stacktrace --no-daemon
+          run_gradle "Release APK" assembleRelease.log gradle :app:assembleRelease --stacktrace --no-daemon
+          run_gradle "Release AAB" bundleRelease.log gradle :app:bundleRelease --stacktrace --no-daemon
 
           echo
           echo "============================================================"
