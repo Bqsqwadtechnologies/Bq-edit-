@@ -430,17 +430,42 @@ private fun SuperpowerPanel(selected: BqClip?, project: BqProject, commit: (BqPr
     if (selected == null) { Text("Select a clip first", Modifier.padding(16.dp)); return }
     LazyColumn(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
         item { Text("BQ Superpower FX", style = MaterialTheme.typography.titleMedium) }
-        item { Text("Tracking/compositing state is stored non-destructively. Rendering modules can consume the same FX layer state.", style = MaterialTheme.typography.labelSmall) }
+        item { Text("Lock effects to a selected person and body area so the target remains explicit in project state.", style = MaterialTheme.typography.labelSmall) }
         items(BqSuperpowerFxCatalog.effects) { effect ->
             OutlinedButton(onClick = {
                 val fx = com.bqsqwad.proedit.editor.BqFxLayer(UUID.randomUUID().toString(), effect.kind)
                 commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(fxLayers = it.fxLayers + fx) else it }))
             }, Modifier.fillMaxWidth()) { Text(effect.name) }
         }
+        selected.fxLayers.forEach { fx ->
+            item(key = fx.id) {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(fx.kind.name.replace('_',' '))
+                        Text("Target person: " + (fx.tracking.selectedPersonId?.toString() ?: "not selected"), style = MaterialTheme.typography.labelSmall)
+                        Text("Target part: " + (fx.tracking.target?.part?.name ?: "WHOLE_PERSON"), style = MaterialTheme.typography.labelSmall)
+                        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            BqSubjectPart.values().forEach { part ->
+                                OutlinedButton(onClick = {
+                                    val person = fx.tracking.selectedPersonId ?: 0
+                                    val binding = fx.tracking.copy(
+                                        selectedPersonId = person,
+                                        target = BqSubjectTarget(person, part, fx.tracking.confidenceThreshold)
+                                    )
+                                    val updated = fx.copy(tracking = binding)
+                                    commit(project.copy(clips = project.clips.map { clip ->
+                                        if (clip.id == selected.id) clip.copy(fxLayers = clip.fxLayers.map { if (it.id == fx.id) updated else it }) else clip
+                                    }))
+                                }) { Text(part.name.replace('_',' '), style = MaterialTheme.typography.labelSmall) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         item { Text("Configured layers: ${selected.fxLayers.size}", style = MaterialTheme.typography.labelSmall) }
     }
 }
-
 @Composable
 private fun KeyframesPanel(selected: BqClip?, project: BqProject, commit: (BqProject) -> Unit) {
     if (selected == null) { Text("Select a clip first", Modifier.padding(16.dp)); return }
