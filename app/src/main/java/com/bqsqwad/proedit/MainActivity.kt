@@ -200,7 +200,8 @@ private fun BqProEditApp() {
                         OutlinedButton(onClick = {
                             val id = project.selectedClipId ?: return@OutlinedButton
                             val clip = project.clips.firstOrNull { it.id == id } ?: return@OutlinedButton
-                            val pair = BqTimelineOps.split(clip, position)
+                            val effectiveEnd = clip.endMs ?: project.assets.firstOrNull { it.uri == clip.uri }?.durationMs ?: 0L
+                            val pair = BqTimelineOps.split(clip.copy(endMs = effectiveEnd.takeIf { it > clip.startMs }), position)
                             if (pair == null) status = "Move the playhead inside the selected clip to split"
                             else {
                                 val index = project.clips.indexOfFirst { it.id == id }
@@ -216,6 +217,39 @@ private fun BqProEditApp() {
                             val list = project.clips.toMutableList().apply { add(index + 1, copy) }
                             commit(project.copy(clips = list, selectedClipId = copy.id))
                         }, enabled = project.selectedClipId != null) { Text("Duplicate") }
+                        OutlinedButton(onClick = {
+                            val id = project.selectedClipId ?: return@OutlinedButton
+                            val index = project.clips.indexOfFirst { it.id == id }
+                            if (index > 0) {
+                                val list = project.clips.toMutableList()
+                                val moved = list.removeAt(index)
+                                list.add(index - 1, moved)
+                                commit(project.copy(clips = list))
+                            }
+                        }, enabled = project.selectedClipId?.let { id -> project.clips.indexOfFirst { it.id == id } > 0 } == true) { Text("← Move") }
+                        OutlinedButton(onClick = {
+                            val id = project.selectedClipId ?: return@OutlinedButton
+                            val index = project.clips.indexOfFirst { it.id == id }
+                            if (index >= 0 && index < project.clips.lastIndex) {
+                                val list = project.clips.toMutableList()
+                                val moved = list.removeAt(index)
+                                list.add(index + 1, moved)
+                                commit(project.copy(clips = list))
+                            }
+                        }, enabled = project.selectedClipId?.let { id -> project.clips.indexOfFirst { it.id == id } >= 0 && project.clips.indexOfFirst { it.id == id } < project.clips.lastIndex } == true) { Text("Move →") }
+                        OutlinedButton(onClick = {
+                            val id = project.selectedClipId ?: return@OutlinedButton
+                            val clip = project.clips.firstOrNull { it.id == id } ?: return@OutlinedButton
+                            if (position <= clip.startMs) status = "Move the playhead after the clip start to trim"
+                            else commit(project.copy(clips = project.clips.map { if (it.id == id) it.copy(startMs = position.coerceAtMost((it.endMs ?: Long.MAX_VALUE) - 1L)) else it }))
+                        }, enabled = project.selectedClipId != null) { Text("Trim In") }
+                        OutlinedButton(onClick = {
+                            val id = project.selectedClipId ?: return@OutlinedButton
+                            val clip = project.clips.firstOrNull { it.id == id } ?: return@OutlinedButton
+                            val end = clip.endMs ?: project.assets.firstOrNull { it.uri == clip.uri }?.durationMs
+                            if (end == null || position <= clip.startMs || position >= end) status = "Move the playhead inside the clip to trim its end"
+                            else commit(project.copy(clips = project.clips.map { if (it.id == id) it.copy(endMs = position) else it }))
+                        }, enabled = project.selectedClipId != null) { Text("Trim Out") }
                         OutlinedButton(onClick = {
                             val id = project.selectedClipId ?: return@OutlinedButton
                             val list = project.clips.filterNot { it.id == id }
