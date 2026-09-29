@@ -1,3 +1,15 @@
+
+val releaseStoreFile = System.getenv("BQ_RELEASE_STORE_FILE")
+val releaseStorePassword = System.getenv("BQ_RELEASE_STORE_PASSWORD")
+val releaseKeyAlias = System.getenv("BQ_RELEASE_KEY_ALIAS")
+val releaseKeyPassword = System.getenv("BQ_RELEASE_KEY_PASSWORD")
+val hasReleaseSigning = listOf(
+    releaseStoreFile,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword
+).all { !it.isNullOrBlank() }
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -25,6 +37,28 @@ android {
     buildFeatures { compose = true }
 
     testOptions { unitTests.isReturnDefaultValues = true }
+
+    signingConfigs {
+        create("release") {
+            if (hasReleaseSigning) {
+                storeFile = file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            isMinifyEnabled = false
+            isShrinkResources = false
+            isDebuggable = false
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+    }
 
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
 }
