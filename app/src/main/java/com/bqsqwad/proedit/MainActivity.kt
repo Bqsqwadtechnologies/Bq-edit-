@@ -312,16 +312,17 @@ private fun BqProEditApp() {
                 Card(Modifier.weight(0.9f).fillMaxSize()) {
                     Column(Modifier.fillMaxSize()) {
                         TabRow(selectedTabIndex = inspectorTab) {
-                            listOf("Inspector", "Effects", "FX", "Media", "Captions", "Keyframes", "Chroma").forEachIndexed { index, title -> Tab(selected = inspectorTab == index, onClick = { inspectorTab = index }, text = { Text(title) }) }
+                            listOf("Inspector", "Color", "Effects", "FX", "Media", "Captions", "Keyframes", "Chroma").forEachIndexed { index, title -> Tab(selected = inspectorTab == index, onClick = { inspectorTab = index }, text = { Text(title) }) }
                         }
                         val selected = project.clips.firstOrNull { it.id == project.selectedClipId }
                         when (inspectorTab) {
                             0 -> Inspector(selected, project, ::commit)
-                            1 -> EffectsPanel(selected, project, ::commit)
-                            2 -> SuperpowerPanel(selected, project, ::commit)
-                            3 -> MediaPanel(project, ::selectClip)
-                            4 -> CaptionsPanel(project, ::commit)
-                            5 -> KeyframesPanel(selected, project, ::commit)
+                            1 -> ColorGradePanel(selected, project, ::commit)
+                            2 -> EffectsPanel(selected, project, ::commit)
+                            3 -> SuperpowerPanel(selected, project, ::commit)
+                            4 -> MediaPanel(project, ::selectClip)
+                            5 -> CaptionsPanel(project, ::commit)
+                            6 -> KeyframesPanel(selected, project, ::commit)
                             else -> ChromaPanel(selected, project, ::commit)
                         }
                     }
