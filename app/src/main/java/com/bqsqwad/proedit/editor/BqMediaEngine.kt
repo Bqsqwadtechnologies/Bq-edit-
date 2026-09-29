@@ -13,6 +13,10 @@ import androidx.media3.effect.Contrast
 import androidx.media3.effect.GaussianBlur
 import androidx.media3.effect.HslAdjustment
 import androidx.media3.effect.MatrixTransformation
+import androidx.media3.effect.OverlayEffect
+import androidx.media3.effect.OverlaySettings
+import androidx.media3.effect.StaticOverlaySettings
+import androidx.media3.effect.TextOverlay
 import androidx.media3.effect.ScaleAndRotateTransformation
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
@@ -25,6 +29,8 @@ import androidx.media3.common.audio.SpeedProvider
 import androidx.media3.common.util.UnstableApi
 import java.io.File
 import java.util.UUID
+import android.text.SpannableString
+import android.text.style.ForegroundColorSpan
 
 @UnstableApi
 class BqMediaEngine(private val context: Context) {
@@ -93,9 +99,12 @@ class BqMediaEngine(private val context: Context) {
         )
     }
 
-    fun editedMediaItem(clip: BqClip): EditedMediaItem {
+    fun editedMediaItem(clip: BqClip): EditedMediaItem = editedMediaItem(BqProject(clips = listOf(clip)), clip, 0L)
+
+    fun editedMediaItem(project: BqProject, clip: BqClip, timelineStartMs: Long): EditedMediaItem {
         val mediaItem = mediaItem(clip)
-        val videoEffects = buildVideoEffects(clip)
+        val videoEffects = buildVideoEffects(clip, advancedRenderPlan(project, clip))
+        videoEffects += captionEffects(project.captions, timelineStartMs, clipDurationMs(clip))
         val audioProcessors = buildAudioProcessors(clip)
         val effects = Effects(audioProcessors, videoEffects)
 
@@ -176,6 +185,37 @@ class BqMediaEngine(private val context: Context) {
             }
         }
         return effects
+    }
+
+    private fun buildVideoEffects(clip: BqClip, plan: BqRenderPlan): MutableList<androidx.media3.common.Effect> {
+        val effects = buildVideoEffects(clip)
+        plan.blend.forEach { layer -> if (layer.opacity < 0.999f) effects += AlphaScale(layer.opacity.coerceIn(0f, 1f)) }
+        plan.motionBlur?.takeIf { it.enabled }?.let { effects += GaussianBlur((it.shutterAngle / 360f * 8f).coerceIn(0.1f, 12f)) }
+        if (plan.powerPresets.isNotEmpty() || plan.particles.isNotEmpty()) effects += GaussianBlur(0.6f)
+        return effects
+    }
+
+    private fun clipDurationMs(clip: BqClip): Long =
+        ((clip.endMs ?: (clip.startMs + DEFAULT_IMAGE_DURATION_MS)) - clip.startMs).coerceAtLeast(1L)
+
+    private fun captionEffects(captions: List<BqCaption>, timelineStartMs: Long, clipDurationMs: Long): List<androidx.media3.common.Effect> {
+        val overlays = captions.filter { it.endMs > timelineStartMs && it.startMs < timelineStartMs + clipDurationMs }.map { caption ->
+            val text = SpannableString(caption.text)
+            text.setSpan(ForegroundColorSpan(caption.colorArgb.toInt()), 0, text.length, 0)
+            object : TextOverlay() {
+                override fun getText(presentationTimeUs: Long): SpannableString {
+                    val t = presentationTimeUs / 1000L + timelineStartMs
+                    return if (t in caption.startMs..caption.endMs) text else SpannableString("")
+                }
+                override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings =
+                    StaticOverlaySettings.Builder()
+                        .setAlphaScale(1f)
+                        .setOverlayFrameAnchor((caption.x.coerceIn(0f, 1f) * 2f) - 1f, 1f - (caption.y.coerceIn(0f, 1f) * 2f))
+                        .setBackgroundFrameAnchor(0f, 0f)
+                        .build()
+            }
+        }
+        return if (overlays.isEmpty()) emptyList() else listOf(OverlayEffect(overlays))
     }
 
     private fun buildAudioProcessors(clip: BqClip): List<androidx.media3.common.audio.AudioProcessor> {
@@ -259,7 +299,9 @@ class BqMediaEngine(private val context: Context) {
         onStarted(output)
 
         runCatching {
-            val sequence = EditedMediaItemSequence.withAudioAndVideoFrom(clips.map(::editedMediaItem))
+            var timelineStartMs = 0L
+            val edited = clips.map { clip -> editedMediaItem(project, clip, timelineStartMs).also { timelineStartMs += clipDurationMs(clip) } }
+            val sequence = EditedMediaItemSequence.withAudioAndVideoFrom(edited)
             transformer.start(Composition.Builder(sequence).build(), output.absolutePath)
         }.onFailure {
             activeTransformer = null
