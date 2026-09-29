@@ -288,14 +288,15 @@ private fun BqProEditApp() {
                 Card(Modifier.weight(0.9f).fillMaxSize()) {
                     Column(Modifier.fillMaxSize()) {
                         TabRow(selectedTabIndex = inspectorTab) {
-                            listOf("Inspector", "Effects", "FX", "Media").forEachIndexed { index, title -> Tab(selected = inspectorTab == index, onClick = { inspectorTab = index }, text = { Text(title) }) }
+                            listOf("Inspector", "Effects", "FX", "Media", "Captions").forEachIndexed { index, title -> Tab(selected = inspectorTab == index, onClick = { inspectorTab = index }, text = { Text(title) }) }
                         }
                         val selected = project.clips.firstOrNull { it.id == project.selectedClipId }
                         when (inspectorTab) {
                             0 -> Inspector(selected, project, ::commit)
                             1 -> EffectsPanel(selected, project, ::commit)
                             2 -> SuperpowerPanel(selected, project, ::commit)
-                            else -> MediaPanel(project, ::selectClip)
+                            3 -> MediaPanel(project, ::selectClip)
+                            else -> CaptionsPanel(project, ::commit)
                         }
                     }
                 }
@@ -421,6 +422,47 @@ private fun SuperpowerPanel(selected: BqClip?, project: BqProject, commit: (BqPr
             }, Modifier.fillMaxWidth()) { Text(effect.name) }
         }
         item { Text("Configured layers: ${selected.fxLayers.size}", style = MaterialTheme.typography.labelSmall) }
+    }
+}
+
+@Composable
+private fun CaptionsPanel(project: BqProject, commit: (BqProject) -> Unit) {
+    var draft by remember { mutableStateOf("") }
+    LazyColumn(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        item { Text("Captions", style = MaterialTheme.typography.titleMedium) }
+        item {
+            androidx.compose.material3.OutlinedTextField(
+                value = draft,
+                onValueChange = { draft = it },
+                label = { Text("Caption text") },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        item {
+            Button(onClick = {
+                if (draft.isNotBlank()) {
+                    val start = project.playheadMs
+                    val end = (start + 3_000L).coerceAtLeast(start + 500L)
+                    val caption = com.bqsqwad.proedit.editor.BqCaption(
+                        UUID.randomUUID().toString(), draft.trim(), start, end
+                    )
+                    commit(project.copy(captions = project.captions + caption))
+                    draft = ""
+                }
+            }, enabled = draft.isNotBlank()) { Text("Add caption at playhead") }
+        }
+        items(project.captions, key = { it.id }) { caption ->
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(8.dp)) {
+                    Text(caption.text, style = MaterialTheme.typography.bodyLarge)
+                    Text("${caption.startMs}–${caption.endMs} ms", style = MaterialTheme.typography.labelSmall)
+                    TextButton(onClick = {
+                        commit(project.copy(captions = project.captions.filterNot { it.id == caption.id }))
+                    }) { Text("Remove") }
+                }
+            }
+        }
+        item { Text("Captions are stored with the project and remain editable.", style = MaterialTheme.typography.labelSmall) }
     }
 }
 
