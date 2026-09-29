@@ -254,10 +254,6 @@ object BqProjectValidator {
             if (wall.feather !in 0f..1f) add("Wall ${wall.id}: feather must be between 0 and 1")
             if (wall.corners.size !in 0..4) add("Wall ${wall.id}: surface must have at most 4 corners")
             wall.corners.forEach { point -> if (!point.x.isFinite() || !point.y.isFinite()) add("Wall ${wall.id}: invalid corner") }
-            wall.tracking.forEach { track ->
-                if (track.confidence !in 0f..1f) add("Wall ${wall.id}: tracking confidence must be between 0 and 1")
-                if (track.corners.size !in 0..4) add("Wall ${wall.id}: tracking sample has too many corners")
-            }
         }
         project.advanced.blendLayers.forEach { if (it.opacity !in 0f..1f) add("Blend layer ${it.id}: opacity must be between 0 and 1") }
         project.advanced.motionBlur.forEach { (id, blur) ->
