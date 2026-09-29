@@ -69,6 +69,7 @@ import com.bqsqwad.proedit.editor.BqProjectStore
 import com.bqsqwad.proedit.editor.BqProjectValidator
 import com.bqsqwad.proedit.editor.BqSuperpowerFxCatalog
 import com.bqsqwad.proedit.editor.BqSuperpowerFxKind
+import com.bqsqwad.proedit.editor.BqSubtitleSrt
 import com.bqsqwad.proedit.editor.BqTimelineOps
 import java.io.File
 import java.util.UUID
@@ -99,6 +100,8 @@ private fun BqProEditApp() {
     var showNewProject by remember { mutableStateOf(false) }
     var inspectorTab by remember { mutableStateOf(0) }
     var exportBusy by remember { mutableStateOf(false) }
+    val srtImport = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) runCatching { context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: "" }.onSuccess { text -> val caps = BqSubtitleSrt.import(text); if (caps.isEmpty()) status = "No valid SRT captions found" else { commit(project.copy(captions = caps)); status = "Imported ${caps.size} caption(s)" } }.onFailure { status = "SRT import failed" } }
+    val srtExport = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/x-subrip")) { uri -> if (uri != null) runCatching { context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(BqSubtitleSrt.export(project.captions)) } ?: error("Unable to write SRT") }.onSuccess { status = "SRT exported" }.onFailure { status = "SRT export failed" } }
 
     fun commit(next: BqProject) {
         val errors = BqProjectValidator.validate(next)
@@ -160,7 +163,7 @@ private fun BqProEditApp() {
     LaunchedEffect(project.selectedClipId, project.clips) {
         project.clips.firstOrNull { it.id == project.selectedClipId }?.let { clip ->
             player.setPlaybackSpeed(clip.speed.coerceIn(0.25f, 4f))
-            player.setVideoEffects(engine.videoEffects(clip))
+            player.setVideoEffects(engine.videoEffects(project, clip))
         }
     }
     LaunchedEffect(isPlaying) {
@@ -321,7 +324,7 @@ private fun BqProEditApp() {
                             2 -> EffectsPanel(selected, project, ::commit)
                             3 -> SuperpowerPanel(selected, project, ::commit)
                             4 -> MediaPanel(project, ::selectClip)
-                            5 -> CaptionsPanel(project, ::commit)
+                            5 -> CaptionsPanel(project, ::commit, { srtImport.launch(arrayOf("text/plain", "application/x-subrip", "text/srt")) }, { srtExport.launch("BQ_Pro_Edit_Captions.srt") })
                             6 -> KeyframesPanel(selected, project, ::commit)
                             7 -> ChromaPanel(selected, project, ::commit)
                             else -> AdvancedPanel(project, ::commit)
@@ -580,10 +583,11 @@ private fun AdvancedPanel(project: BqProject, commit: (BqProject) -> Unit) {
 }
 
 @Composable
-private fun CaptionsPanel(project: BqProject, commit: (BqProject) -> Unit) {
+private fun CaptionsPanel(project: BqProject, commit: (BqProject) -> Unit, importSrt: () -> Unit, exportSrt: () -> Unit) {
     var draft by remember { mutableStateOf("") }
     LazyColumn(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
         item { Text("Captions", style = MaterialTheme.typography.titleMedium) }
+        item { Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { OutlinedButton(onClick = importSrt) { Text("Import SRT") }; OutlinedButton(onClick = exportSrt, enabled = project.captions.isNotEmpty()) { Text("Export SRT") } } }
         item {
             androidx.compose.material3.OutlinedTextField(
                 value = draft,
