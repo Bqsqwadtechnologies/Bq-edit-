@@ -21,6 +21,7 @@ class BqVisionTracker {
         ObjectDetectorOptions.Builder()
             .setDetectorMode(ObjectDetectorOptions.STREAM_MODE)
             .enableMultipleObjects()
+            .enableClassification()
             .build()
     )
 
@@ -41,6 +42,9 @@ class BqVisionTracker {
                 .addOnFailureListener { error -> cont.resumeWithException(error) }
             cont.invokeOnCancellation { objectDetector.close() }
         }
+
+    suspend fun detectSubjects(image: InputImage, frameTimeUs: Long): List<BqTrackedObject> =
+        detectObjects(image, frameTimeUs).filter { it.label.equals("person", ignoreCase = true) }
 
     fun close() {
         poseDetector.close()
