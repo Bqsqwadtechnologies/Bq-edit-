@@ -78,6 +78,7 @@ dependencies {
     implementation("androidx.media3:media3-effect:$media3")
     implementation("com.google.mlkit:object-detection:17.0.2")
     implementation("com.google.mlkit:pose-detection:18.0.0-beta5")
+    implementation("com.google.mlkit:segmentation-selfie:16.0.0-beta6")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.mockito:mockito-core:5.12.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
