@@ -144,15 +144,15 @@ class BqMediaEngine(private val context: Context) {
         val gain = clip.volume.coerceIn(0f, 2f) * clip.audio.volume.coerceIn(0f, 2f)
         if (clip.audio.muted || gain >= 0.999f && clip.audio.fadeInMs <= 0L && clip.audio.fadeOutMs <= 0L) return emptyList()
 
-        val provider = DefaultGainProvider.Builder(gain.coerceIn(0f, 1f))
+        val provider = DefaultGainProvider.Builder(gain.coerceIn(0f, 2f))
             .apply {
                 if (clip.audio.fadeInMs > 0L) {
                     addFadeAt(0L, clip.audio.fadeInMs * 1_000L, DefaultGainProvider.FADE_IN_LINEAR)
                 }
                 clip.audio.fadeOutMs.takeIf { it > 0L }?.let { fade ->
-                    val end = (clip.endMs ?: Long.MAX_VALUE / 1_000L)
-                    val start = (end - fade).coerceAtLeast(0L)
-                    addFadeAt(start * 1_000L, fade * 1_000L, DefaultGainProvider.FADE_OUT_LINEAR)
+                    val durationMs = ((clip.endMs ?: (clip.startMs + 5_000L)) - clip.startMs).coerceAtLeast(0L)
+                    val start = (durationMs - fade).coerceAtLeast(0L)
+                    addFadeAt(start * 1_000L, fade.coerceAtMost(durationMs) * 1_000L, DefaultGainProvider.FADE_OUT_LINEAR)
                 }
             }
             .build()
