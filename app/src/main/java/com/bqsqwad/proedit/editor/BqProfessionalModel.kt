@@ -223,6 +223,10 @@ object BqProjectValidator {
             if (clip.scale <= 0f) add("Clip ${clip.name}: scale must be positive")
         }
         if (project.fps !in 1..120) add("Unsupported project frame rate")
+        project.advanced.blendLayers.forEach { if (it.opacity !in 0f..1f) add("Blend layer ${it.id}: opacity must be between 0 and 1") }
+        project.advanced.motionBlur.forEach { (id, blur) -> if (blur.samples !in 1..64) add("Motion blur $id: samples must be 1..64") }
+        project.advanced.proxy.let { if (it.enabled && (it.width <= 0 || it.height <= 0 || it.bitrate <= 0)) add("Proxy settings are invalid") }
+        project.advanced.exportPresets.forEach { if (it.width <= 0 || it.height <= 0 || it.fps !in 1..120 || it.bitrate <= 0) add("Export preset ${it.name} is invalid") }
     }
 }
 
