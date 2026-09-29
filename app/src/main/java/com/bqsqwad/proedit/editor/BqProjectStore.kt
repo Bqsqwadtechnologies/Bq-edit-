@@ -149,7 +149,21 @@ class BqProjectStore(context: Context) {
         put("audio", JSONObject().apply { put("volume", c.audio.volume); put("fadeIn", c.audio.fadeInMs); put("fadeOut", c.audio.fadeOutMs); put("muted", c.audio.muted); put("solo", c.audio.solo); put("ducking", c.audio.ducking) })
         put("chroma", JSONObject().apply { put("enabled", c.chromaKey.enabled); put("color", c.chromaKey.colorArgb); put("similarity", c.chromaKey.similarity); put("softness", c.chromaKey.softness); put("spill", c.chromaKey.spillSuppression) })
         put("effects", JSONArray(c.effects.map { e -> JSONObject().apply { put("id", e.id); put("name", e.name); put("kind", e.kind.name); put("enabled", e.enabled); put("parameters", parameterJson(e.parameters)) } }))
-        put("fx", JSONArray(c.fxLayers.map { f -> JSONObject().apply { put("id", f.id); put("kind", f.kind.name); put("enabled", f.enabled); put("start", f.startMs); put("end", f.endMs ?: JSONObject.NULL); put("person", f.tracking.selectedPersonId ?: JSONObject.NULL); put("object", f.tracking.selectedObjectId ?: JSONObject.NULL); put("surface", f.tracking.selectedSurfaceId ?: JSONObject.NULL); put("confidence", f.tracking.confidenceThreshold); put("targetPart", f.tracking.target?.part?.name ?: JSONObject.NULL); put("targetFeather", f.tracking.target?.feather ?: JSONObject.NULL); put("targetExpansion", f.tracking.target?.expansion ?: JSONObject.NULL); put("parameters", parameterJson(f.parameters)) } }))
+        put("fx", JSONArray(c.fxLayers.map { f -> JSONObject().apply {
+            put("id", f.id); put("kind", f.kind.name); put("enabled", f.enabled); put("start", f.startMs); put("end", f.endMs ?: JSONObject.NULL)
+            put("person", f.tracking.selectedPersonId ?: JSONObject.NULL); put("object", f.tracking.selectedObjectId ?: JSONObject.NULL); put("surface", f.tracking.selectedSurfaceId ?: JSONObject.NULL)
+            put("confidence", f.tracking.confidenceThreshold); put("targetPart", f.tracking.target?.part?.name ?: JSONObject.NULL)
+            put("targetSubjectId", f.tracking.target?.subjectId ?: JSONObject.NULL); put("targetConfidence", f.tracking.target?.confidenceThreshold ?: JSONObject.NULL)
+            put("targetFeather", f.tracking.target?.feather ?: JSONObject.NULL); put("targetExpansion", f.tracking.target?.expansion ?: JSONObject.NULL)
+            f.tracking.subjectTrack?.let { track ->
+                put("subjectTrackId", track.subjectId); put("subjectTrackLabel", track.label); put("subjectTrackConfidence", track.confidenceThreshold)
+                put("subjectDetections", JSONArray(track.detections.map { d -> JSONObject().apply {
+                    put("trackingId", d.trackingId); put("label", d.label); put("timeUs", d.frameTimeUs)
+                    put("left", d.box.left); put("top", d.box.top); put("right", d.box.right); put("bottom", d.box.bottom); put("confidence", d.confidence)
+                } }))
+            }
+            put("parameters", parameterJson(f.parameters))
+        } }))
     }
 
     private fun clipFromJson(o: JSONObject): BqClip {
@@ -189,7 +203,35 @@ class BqProjectStore(context: Context) {
             selectedPersonId = if (o.isNull("person")) null else o.optInt("person"),
             selectedObjectId = if (o.isNull("object")) null else o.optInt("object"),
             selectedSurfaceId = if (o.isNull("surface")) null else o.optInt("surface"),
-            confidenceThreshold = o.optDouble("confidence", .35).toFloat()
+            confidenceThreshold = o.optDouble("confidence", .35).toFloat(),
+            target = if (o.isNull("targetSubjectId")) null else BqSubjectTarget(
+                subjectId = o.optInt("targetSubjectId"),
+                part = runCatching { BqSubjectPart.valueOf(o.optString("targetPart")) }.getOrDefault(BqSubjectPart.WHOLE_PERSON),
+                confidenceThreshold = o.optDouble("targetConfidence", o.optDouble("confidence", .35)).toFloat(),
+                feather = o.optDouble("targetFeather", .08).toFloat(),
+                expansion = o.optDouble("targetExpansion", 0.0).toFloat()
+            ),
+            subjectTrack = if (o.isNull("subjectTrackId")) null else BqSubjectTrack(
+                subjectId = o.optInt("subjectTrackId"),
+                label = o.optString("subjectTrackLabel", "person"),
+                confidenceThreshold = o.optDouble("subjectTrackConfidence", o.optDouble("confidence", .35)).toFloat(),
+                detections = buildList {
+                    val a = o.optJSONArray("subjectDetections") ?: JSONArray()
+                    for (i in 0 until a.length()) {
+                        val d = a.optJSONObject(i) ?: continue
+                        add(BqTrackedObject(
+                            trackingId = d.optInt("trackingId", o.optInt("subjectTrackId")),
+                            label = d.optString("label", "person"),
+                            frameTimeUs = d.optLong("timeUs"),
+                            box = BqTrackedBox(
+                                d.optDouble("left").toFloat(), d.optDouble("top").toFloat(),
+                                d.optDouble("right").toFloat(), d.optDouble("bottom").toFloat()
+                            ),
+                            confidence = d.optDouble("confidence", 0.0).toFloat()
+                        ))
+                    }
+                }
+            )
         ),
         parameters = parameterFromJson(o.optJSONArray("parameters"))
     )
