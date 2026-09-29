@@ -53,7 +53,7 @@ jobs:
           test "$(git branch --show-current)" = "main"
           test -f android/settings.gradle.kts
           test -f android/app/build.gradle.kts
-          test -f app/src/main/AndroidManifest.xml
+          test -f android/app/src/main/AndroidManifest.xml
           grep -R "com.bqsqwad.proedit" -n android/app/src/main | head
 
       - name: Run unit tests
@@ -62,12 +62,15 @@ jobs:
         run: gradle :app:testDebugUnitTest --stacktrace --no-daemon
 
       - name: Build debug APK
+        working-directory: android
         run: gradle :app:assembleDebug --stacktrace --no-daemon
 
       - name: Build release APK
+        working-directory: android
         run: gradle :app:assembleRelease --stacktrace --no-daemon
 
       - name: Build release AAB
+        working-directory: android
         run: gradle :app:bundleRelease --stacktrace --no-daemon
 
       - name: Verify real outputs
@@ -75,9 +78,9 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          debug_apk=(app/build/outputs/apk/debug/*.apk)
-          release_apk=(app/build/outputs/apk/release/*.apk)
-          release_aab=(app/build/outputs/bundle/release/*.aab)
+          debug_apk=(android/app/build/outputs/apk/debug/*.apk)
+          release_apk=(android/app/build/outputs/apk/release/*.apk)
+          release_aab=(android/app/build/outputs/bundle/release/*.aab)
           ((${#debug_apk[@]} > 0)) && test -s "${debug_apk[0]}"
           ((${#release_apk[@]} > 0)) && test -s "${release_apk[0]}"
           ((${#release_aab[@]} > 0)) && test -s "${release_aab[0]}"
@@ -87,19 +90,19 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: bq-pro-edit-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
       - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
           name: bq-pro-edit-release-apk
-          path: app/build/outputs/apk/release/*.apk
+          path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
 
       - name: Upload release AAB
         uses: actions/upload-artifact@v4
         with:
           name: bq-pro-edit-release-aab
-          path: app/build/outputs/bundle/release/*.aab
+          path: android/app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
