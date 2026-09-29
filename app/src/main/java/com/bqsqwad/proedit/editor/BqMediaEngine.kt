@@ -119,7 +119,7 @@ class BqMediaEngine(private val context: Context) {
             .build()
     }
 
-    private fun buildVideoEffects(clip: BqClip): List<androidx.media3.common.Effect> {
+    private fun buildVideoEffects(clip: BqClip): MutableList<androidx.media3.common.Effect> {
         val effects = mutableListOf<androidx.media3.common.Effect>()
 
         val scaleX = (clip.scale * clip.transform.scaleX).coerceIn(0.1f, 8f)
