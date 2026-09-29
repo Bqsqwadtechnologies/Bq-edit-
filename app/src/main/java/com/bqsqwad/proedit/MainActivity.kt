@@ -326,6 +326,21 @@ private fun Inspector(selected: BqClip?, project: BqProject, commit: (BqProject)
         item { Slider(selected.y, { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(y = v) else it })) }, -1f..1f) }
         item { Text("Volume ${selected.volume}") }
         item { Slider(selected.volume, { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(volume = v) else it })) }, 0f..2f) }
+        item { Text("Audio track", style = MaterialTheme.typography.titleSmall) }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                OutlinedButton(onClick = {
+                    commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(audio = it.audio.copy(muted = !it.audio.muted)) else it }))
+                }) { Text(if (selected.audio.muted) "Unmute" else "Mute") }
+                OutlinedButton(onClick = {
+                    commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(audio = it.audio.copy(solo = !it.audio.solo)) else it }))
+                }) { Text(if (selected.audio.solo) "Unsolo" else "Solo") }
+            }
+        }
+        item { Text("Fade in: ${selected.audio.fadeInMs / 1000f}s") }
+        item { Slider(selected.audio.fadeInMs.toFloat(), { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(audio = it.audio.copy(fadeInMs = v.toLong())) else it })) }, 0f..10_000f) }
+        item { Text("Fade out: ${selected.audio.fadeOutMs / 1000f}s") }
+        item { Slider(selected.audio.fadeOutMs.toFloat(), { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(audio = it.audio.copy(fadeOutMs = v.toLong())) else it })) }, 0f..10_000f) }
         item { Text("Non-destructive: source media is never modified.", style = MaterialTheme.typography.labelSmall) }
     }
 }
