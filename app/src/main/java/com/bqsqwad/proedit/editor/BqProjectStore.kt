@@ -169,7 +169,7 @@ private fun effectFromJsonForStore(o: JSONObject) = BqEffectLayer(
     name = o.optString("name", "Effect"),
     kind = runCatching { BqEffectKind.valueOf(o.optString("kind")) }.getOrDefault(BqEffectKind.BRIGHTNESS),
     enabled = o.optBoolean("enabled", true),
-    parameters = emptyMap()
+    parameters = parameterFromJsonForStore(o.optJSONArray("parameters"))
 )
 
 private fun fxFromJsonForStore(o: JSONObject) = BqFxLayer(
@@ -177,6 +177,32 @@ private fun fxFromJsonForStore(o: JSONObject) = BqFxLayer(
     kind = runCatching { BqSuperpowerFxKind.valueOf(o.optString("kind")) }.getOrDefault(BqSuperpowerFxKind.GLOW_AURA),
     enabled = o.optBoolean("enabled", true),
     startMs = o.optLong("start"),
-    endMs = if (o.isNull("end")) null else o.optLong("end")
+    endMs = if (o.isNull("end")) null else o.optLong("end"),
+    tracking = BqTrackingBinding(
+        selectedPersonId = if (o.isNull("person")) null else o.optInt("person"),
+        selectedObjectId = if (o.isNull("object")) null else o.optInt("object"),
+        selectedSurfaceId = if (o.isNull("surface")) null else o.optInt("surface"),
+        confidenceThreshold = o.optDouble("confidence", .35).toFloat()
+    ),
+    parameters = parameterFromJsonForStore(o.optJSONArray("parameters"))
 )
+
+private fun parameterFromJsonForStore(array: JSONArray?): Map<String, BqFloatParameter> {
+    if (array == null) return emptyMap()
+    val result = linkedMapOf<String, BqFloatParameter>()
+    for (i in 0 until array.length()) {
+        val o = array.optJSONObject(i) ?: continue
+        val keys = mutableListOf<BqKeyframe<Float>>()
+        val keyArray = o.optJSONArray("keys")
+        if (keyArray != null) for (j in 0 until keyArray.length()) {
+            val k = keyArray.optJSONObject(j) ?: continue
+            keys += BqKeyframe(
+                k.optLong("time"),
+                k.optDouble("value").toFloat(),
+                runCatching { BqInterpolation.valueOf(k.optString("interp")) }.getOrDefault(BqInterpolation.LINEAR)
+            )
+        }
+        result[o.optString("key")] = BqFloatParameter(o.optDouble("value").toFloat(), keys)
+    }
+    return result
 }
