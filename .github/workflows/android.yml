@@ -53,7 +53,7 @@ jobs:
       - name: Verify repository integrity
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "\${GITHUB_SHA}"
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
           test -f android/settings.gradle.kts
           test -f android/app/build.gradle.kts
           test -f android/app/src/main/AndroidManifest.xml
@@ -73,29 +73,29 @@ jobs:
           run_gradle() {
             local label="$1"
             shift
-            local log="../build-diagnostics/\${label}.log"
+            local log="../build-diagnostics/${label}.log"
             echo ""
             echo "============================================================"
-            echo "START: \${label}"
+            echo "START: ${label}"
             echo "COMMAND: gradle $*"
             echo "============================================================"
-            gradle "$@" --stacktrace --warning-mode=all --no-daemon >"\${log}" 2>&1
+            gradle "$@" --stacktrace --warning-mode=all --no-daemon >"${log}" 2>&1
             local rc=$?
-            cat "\${log}" >> ../build-diagnostics/full-build.log
+            cat "${log}" >> ../build-diagnostics/full-build.log
             echo ""
-            echo "RESULT: \${label} exit=\${rc}"
+            echo "RESULT: ${label} exit=${rc}"
             echo "------------------------------------------------------------"
-            if [ "\${rc}" -ne 0 ]; then
+            if [ "${rc}" -ne 0 ]; then
               overall=1
-              echo "FAILURE: \${label}"
-              echo "Errors/warnings found in \${log}:"
-              grep -Ein "error:|e: |failed|failure|exception|warning:|deprecated|what went wrong|problem" "\${log}" | tail -n 250 || true
+              echo "FAILURE: ${label}"
+              echo "Errors/warnings found in ${log}:"
+              grep -Ein "error:|e: |failed|failure|exception|warning:|deprecated|what went wrong|problem" "${log}" | tail -n 250 || true
             else
-              echo "SUCCESS: \${label}"
+              echo "SUCCESS: ${label}"
             fi
           }
 
-          if [ "\${{ inputs.run_tests }}" = "true" ]; then
+          if [ "${{ inputs.run_tests }}" = "true" ]; then
             run_gradle "unit-tests" :app:testDebugUnitTest --continue
           else
             echo "Unit tests skipped by workflow input."
@@ -107,19 +107,19 @@ jobs:
 
           {
             echo "BQ Pro Edit build diagnostic summary"
-            echo "Commit: \${GITHUB_SHA}"
+            echo "Commit: ${GITHUB_SHA}"
             echo "Date: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
             echo ""
             echo "Detected errors/warnings across all requested Gradle invocations:"
             grep -Ein "error:|e: |failed|failure|exception|warning:|deprecated|what went wrong|problem" ../build-diagnostics/full-build.log | tail -n 500 || true
             echo ""
-            echo "Overall diagnostic status: \${overall}"
+            echo "Overall diagnostic status: ${overall}"
           } > ../build-diagnostics/SUMMARY.txt
 
-          exit "\${overall}"
+          exit "${overall}"
 
       - name: Verify build outputs
-        if: \${{ always() }}
+        if: ${{ always() }}
         shell: bash
         run: |
           set +e
@@ -132,31 +132,31 @@ jobs:
           release_apk=(android/app/build/outputs/apk/release/*.apk)
           release_aab=(android/app/build/outputs/bundle/release/*.aab)
 
-          if ((\${#debug_apk[@]} > 0)); then
-            printf 'Debug APK: %s\n' "\${debug_apk[@]}" | tee -a build-diagnostics/output-verification.log
+          if ((${#debug_apk[@]} > 0)); then
+            printf 'Debug APK: %s\n' "${debug_apk[@]}" | tee -a build-diagnostics/output-verification.log
           else
             echo "Missing debug APK" | tee -a build-diagnostics/output-verification.log
             missing=1
           fi
 
-          if ((\${#release_apk[@]} > 0)); then
-            printf 'Release APK: %s\n' "\${release_apk[@]}" | tee -a build-diagnostics/output-verification.log
+          if ((${#release_apk[@]} > 0)); then
+            printf 'Release APK: %s\n' "${release_apk[@]}" | tee -a build-diagnostics/output-verification.log
           else
             echo "Missing release APK" | tee -a build-diagnostics/output-verification.log
             missing=1
           fi
 
-          if ((\${#release_aab[@]} > 0)); then
-            printf 'Release AAB: %s\n' "\${release_aab[@]}" | tee -a build-diagnostics/output-verification.log
+          if ((${#release_aab[@]} > 0)); then
+            printf 'Release AAB: %s\n' "${release_aab[@]}" | tee -a build-diagnostics/output-verification.log
           else
             echo "Missing release AAB" | tee -a build-diagnostics/output-verification.log
             missing=1
           fi
 
-          echo "output_missing=\${missing}" >> build-diagnostics/output-verification.log
+          echo "output_missing=${missing}" >> build-diagnostics/output-verification.log
 
       - name: Upload build diagnostics
-        if: \${{ always() }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: bq-pro-edit-build-diagnostics
@@ -165,7 +165,7 @@ jobs:
           retention-days: 14
 
       - name: Upload debug APK
-        if: \${{ always() }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: bq-pro-edit-debug-apk
@@ -173,7 +173,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload release APK
-        if: \${{ always() }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: bq-pro-edit-release-apk
@@ -181,7 +181,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload release AAB
-        if: \${{ always() }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: bq-pro-edit-release-aab
@@ -189,7 +189,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Final build result
-        if: \${{ always() }}
+        if: ${{ always() }}
         shell: bash
         run: |
           set -euo pipefail
