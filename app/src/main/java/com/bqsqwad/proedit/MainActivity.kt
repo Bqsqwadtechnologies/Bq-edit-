@@ -396,6 +396,28 @@ private fun Inspector(selected: BqClip?, project: BqProject, commit: (BqProject)
 }
 
 @Composable
+private fun ColorGradePanel(selected: BqClip?, project: BqProject, commit: (BqProject) -> Unit) {
+    if (selected == null) { Text("Select a clip first", Modifier.padding(16.dp)); return }
+    val g = selected.colorGrade
+    val rows = listOf("Exposure" to g.exposure, "Contrast" to g.contrast, "Highlights" to g.highlights, "Shadows" to g.shadows, "Whites" to g.whites, "Blacks" to g.blacks, "Saturation" to g.saturation, "Temperature" to g.temperature, "Tint" to g.tint)
+    LazyColumn(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        item { Text("Color Grade", style = MaterialTheme.typography.titleMedium) }
+        items(rows) { entry ->
+            Text("${entry.first}: %.2f".format(entry.second), style = MaterialTheme.typography.labelSmall)
+            val range = if (entry.first == "Saturation" || entry.first == "Temperature" || entry.first == "Tint") -100f..100f else -1f..1f
+            Slider(entry.second.coerceIn(range.start, range.endInclusive), { v ->
+                val next = when (entry.first) {
+                    "Exposure" -> g.copy(exposure = v), "Contrast" -> g.copy(contrast = v), "Highlights" -> g.copy(highlights = v),
+                    "Shadows" -> g.copy(shadows = v), "Whites" -> g.copy(whites = v), "Blacks" -> g.copy(blacks = v),
+                    "Saturation" -> g.copy(saturation = v), "Temperature" -> g.copy(temperature = v), else -> g.copy(tint = v)
+                }
+                commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(colorGrade = next) else it }))
+            }, range)
+        }
+        item { OutlinedButton(onClick = { commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(colorGrade = BqColorGrade()) else it })) }) { Text("Reset Grade") } }
+    }
+}
+@Composable
 private fun EffectsPanel(selected: BqClip?, project: BqProject, commit: (BqProject) -> Unit) {
     if (selected == null) { Text("Select a clip first", Modifier.padding(16.dp)); return }
     val kinds = BqEffectKind.entries
