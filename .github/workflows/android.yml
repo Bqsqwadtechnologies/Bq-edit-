@@ -50,122 +50,125 @@ jobs:
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Verify repository integrity
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
-          test -f android/settings.gradle.kts
-          test -f android/app/build.gradle.kts
-          test -f android/app/src/main/AndroidManifest.xml
-          grep -R "com.bqsqwad.proedit" -n android/app/src/main >/dev/null
-
-      - name: Scan tests and all package builds for errors
-        id: diagnostic_build
-        working-directory: android
-        shell: bash
+      - name: Scan repository integrity
+        id: integrity
         continue-on-error: true
+        shell: bash
         run: |
           set +e
-          mkdir -p ../build-diagnostics
-          : > ../build-diagnostics/full-build.log
-          overall=0
+          mkdir -p android/build/ci-diagnostics
+          : > android/build/ci-diagnostics/failures.txt
+          check() {
+            label="$1"
+            shift
+            echo "=== CHECK: $label ==="
+            "$@"
+            rc=$?
+            if [ "$rc" -ne 0 ]; then
+              echo "$label (exit $rc)" | tee -a android/build/ci-diagnostics/failures.txt
+            fi
+            return 0
+          }
+          check "Expected workflow branch is main" test "$GITHUB_REF_NAME" = "main"
+          check "settings.gradle.kts exists" test -f android/settings.gradle.kts
+          check "app/build.gradle.kts exists" test -f android/app/build.gradle.kts
+          check "AndroidManifest.xml exists" test -f android/app/src/main/AndroidManifest.xml
+          check "Application ID com.bqsqwad.proedit is present" grep -R "com.bqsqwad.proedit" -n android/app/src/main
+          check "Git HEAD matches workflow SHA" test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo "=== INTEGRITY SCAN COMPLETE ==="
+
+      - name: Run all Gradle checks and builds
+        id: gradle_checks
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          mkdir -p android/build/ci-diagnostics
+          : > android/build/ci-diagnostics/gradle-failures.txt
 
           run_gradle() {
-            local label="$1"
-            shift
-            local log="../build-diagnostics/${label}.log"
-            echo ""
+            label="$1"
+            logfile="$2"
+            shift 2
+            echo
             echo "============================================================"
-            echo "START: ${label}"
-            echo "COMMAND: gradle $*"
+            echo "START: $label"
             echo "============================================================"
-            gradle "$@" --stacktrace --warning-mode=all --no-daemon >"${log}" 2>&1
-            local rc=$?
-            cat "${log}" >> ../build-diagnostics/full-build.log
-            echo ""
-            echo "RESULT: ${label} exit=${rc}"
-            echo "------------------------------------------------------------"
-            if [ "${rc}" -ne 0 ]; then
-              overall=1
-              echo "FAILURE: ${label}"
-              echo "Errors/warnings found in ${log}:"
-              grep -Ein "error:|e: |failed|failure|exception|warning:|deprecated|what went wrong|problem" "${log}" | tail -n 250 || true
-            else
-              echo "SUCCESS: ${label}"
+            "$@" 2>&1 | tee "$logfile"
+            rc=$?
+            echo "END: $label (exit $rc)"
+            if [ "$rc" -ne 0 ]; then
+              echo "$label (exit $rc)" | tee -a android/build/ci-diagnostics/gradle-failures.txt
             fi
+            return 0
           }
 
-          if [ "${{ inputs.run_tests }}" = "true" ]; then
-            run_gradle "unit-tests" :app:testDebugUnitTest --continue
-          else
-            echo "Unit tests skipped by workflow input."
+          if [ "false" != "true" ]; then
+            run_gradle "JVM unit tests" testDebugUnitTest.log gradle :app:testDebugUnitTest --stacktrace --continue --no-daemon
           fi
 
-          run_gradle "debug-apk" :app:assembleDebug --continue
-          run_gradle "release-apk" :app:assembleRelease --continue
-          run_gradle "release-aab" :app:bundleRelease --continue
+          run_gradle "Debug APK" assembleDebug.log gradle :app:assembleDebug --stacktrace --continue --no-daemon
+          run_gradle "Release APK" assembleRelease.log gradle :app:assembleRelease --stacktrace --continue --no-daemon
+          run_gradle "Release AAB" bundleRelease.log gradle :app:bundleRelease --stacktrace --continue --no-daemon
 
-          {
-            echo "BQ Pro Edit build diagnostic summary"
-            echo "Commit: ${GITHUB_SHA}"
-            echo "Date: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-            echo ""
-            echo "Detected errors/warnings across all requested Gradle invocations:"
-            grep -Ein "error:|e: |failed|failure|exception|warning:|deprecated|what went wrong|problem" ../build-diagnostics/full-build.log | tail -n 500 || true
-            echo ""
-            echo "Overall diagnostic status: ${overall}"
-          } > ../build-diagnostics/SUMMARY.txt
+          echo
+          echo "============================================================"
+          echo "ALL GRADLE CHECKS AND BUILDS HAVE BEEN EXECUTED"
+          echo "============================================================"
+          cat android/build/ci-diagnostics/gradle-failures.txt 2>/dev/null || true
 
-          exit "${overall}"
-
-      - name: Verify build outputs
-        if: ${{ always() }}
+      - name: Verify real outputs
+        id: outputs
+        continue-on-error: true
         shell: bash
         run: |
           set +e
-          mkdir -p build-diagnostics
-          : > build-diagnostics/output-verification.log
-          missing=0
-          shopt -s nullglob
+          mkdir -p android/build/ci-diagnostics
+          : > android/build/ci-diagnostics/output-failures.txt
+          debug_count=$(find android/app/build/outputs/apk/debug -maxdepth 1 -type f -name "*.apk" 2>/dev/null | wc -l)
+          release_count=$(find android/app/build/outputs/apk/release -maxdepth 1 -type f -name "*.apk" 2>/dev/null | wc -l)
+          aab_count=$(find android/app/build/outputs/bundle/release -maxdepth 1 -type f -name "*.aab" 2>/dev/null | wc -l)
+          [ "$debug_count" -gt 0 ] || echo "Debug APK missing" | tee -a android/build/ci-diagnostics/output-failures.txt
+          [ "$release_count" -gt 0 ] || echo "Release APK missing" | tee -a android/build/ci-diagnostics/output-failures.txt
+          [ "$aab_count" -gt 0 ] || echo "Release AAB missing" | tee -a android/build/ci-diagnostics/output-failures.txt
+          find android/app/build/outputs -type f \( -name "*.apk" -o -name "*.aab" \) -print 2>/dev/null || true
 
-          debug_apk=(android/app/build/outputs/apk/debug/*.apk)
-          release_apk=(android/app/build/outputs/apk/release/*.apk)
-          release_aab=(android/app/build/outputs/bundle/release/*.aab)
+      - name: Scan and summarize all collected errors
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          mkdir -p android/build/ci-diagnostics
+          summary="android/build/ci-diagnostics/FINAL-BUILD-DIAGNOSTIC.txt"
+          {
+            echo "BQ Pro Edit complete build diagnostic"
+            echo "Repository: $GITHUB_REPOSITORY"
+            echo "Branch: $GITHUB_REF_NAME"
+            echo "Commit: $GITHUB_SHA"
+            echo
+            echo "=== Repository integrity failures ==="
+            cat android/build/ci-diagnostics/failures.txt 2>/dev/null || true
+            echo
+            echo "=== Gradle stage failures ==="
+            cat android/build/ci-diagnostics/gradle-failures.txt 2>/dev/null || true
+            echo
+            echo "=== Output failures ==="
+            cat android/build/ci-diagnostics/output-failures.txt 2>/dev/null || true
+            echo
+            echo "=== Error/Warning lines from Gradle logs ==="
+            grep -RniE "error:|e: |FAILURE:|failed|exception|warning:" android/build/ci-diagnostics/*.log 2>/dev/null || true
+          } | tee "$summary"
 
-          if ((${#debug_apk[@]} > 0)); then
-            printf 'Debug APK: %s\n' "${debug_apk[@]}" | tee -a build-diagnostics/output-verification.log
-          else
-            echo "Missing debug APK" | tee -a build-diagnostics/output-verification.log
-            missing=1
-          fi
-
-          if ((${#release_apk[@]} > 0)); then
-            printf 'Release APK: %s\n' "${release_apk[@]}" | tee -a build-diagnostics/output-verification.log
-          else
-            echo "Missing release APK" | tee -a build-diagnostics/output-verification.log
-            missing=1
-          fi
-
-          if ((${#release_aab[@]} > 0)); then
-            printf 'Release AAB: %s\n' "${release_aab[@]}" | tee -a build-diagnostics/output-verification.log
-          else
-            echo "Missing release AAB" | tee -a build-diagnostics/output-verification.log
-            missing=1
-          fi
-
-          echo "output_missing=${missing}" >> build-diagnostics/output-verification.log
-
-      - name: Upload build diagnostics
-        if: ${{ always() }}
+      - name: Upload complete build diagnostics
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: bq-pro-edit-build-diagnostics
-          path: build-diagnostics/
-          if-no-files-found: error
-          retention-days: 14
-
+          path: android/build/ci-diagnostics/
+          if-no-files-found: warn
       - name: Upload debug APK
-        if: ${{ always() }}
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: bq-pro-edit-debug-apk
@@ -173,7 +176,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload release APK
-        if: ${{ always() }}
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: bq-pro-edit-release-apk
@@ -181,7 +184,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload release AAB
-        if: ${{ always() }}
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: bq-pro-edit-release-aab
@@ -189,15 +192,18 @@ jobs:
           if-no-files-found: warn
 
       - name: Final build result
-        if: ${{ always() }}
+        if: always()
         shell: bash
         run: |
-          set -euo pipefail
-          echo "Diagnostic build results:"
-          cat build-diagnostics/SUMMARY.txt 2>/dev/null || true
-          echo ""
-          echo "The workflow intentionally ran all independent diagnostics before this final gate."
-          if grep -q "Overall diagnostic status: 1" build-diagnostics/SUMMARY.txt 2>/dev/null; then
-            echo "One or more tests/package builds failed. See the uploaded diagnostics artifact."
+          set +e
+          failed=0
+          for f in android/build/ci-diagnostics/failures.txt android/build/ci-diagnostics/gradle-failures.txt android/build/ci-diagnostics/output-failures.txt; do
+            if [ -s "$f" ]; then
+              failed=1
+            fi
+          done
+          if [ "$failed" -ne 0 ]; then
+            echo "BQ Pro Edit build FAILED after collecting all available diagnostics."
             exit 1
           fi
+          echo "BQ Pro Edit build completed successfully."
