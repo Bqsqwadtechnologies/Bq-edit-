@@ -279,11 +279,11 @@ private fun BqProEditApp() {
                             val clip = project.clips.firstOrNull { it.id == project.selectedClipId }
                             if (clip == null) status = "Select a video clip first" else runCatching {
                                 val retriever = MediaMetadataRetriever()
-                                retriever.setDataSource(context, clip.uri)
-                                val bitmap = retriever.getFrameAtTime((position.coerceAtLeast(0L) + clip.startMs) * 1_000L, MediaMetadataRetriever.OPTION_CLOSEST) ?: error("No video frame available")
-                                saveFrameToGallery(context, bitmap)
-                                bitmap.recycle()
-                                retriever.release()
+                                try {
+                                    retriever.setDataSource(context, clip.uri)
+                                    val bitmap = retriever.getFrameAtTime((position.coerceAtLeast(0L) + clip.startMs) * 1_000L, MediaMetadataRetriever.OPTION_CLOSEST) ?: error("No video frame available")
+                                    try { saveFrameToGallery(context, bitmap) } finally { bitmap.recycle() }
+                                } finally { retriever.release() }
                             }.onSuccess { status = "Frame captured to Pictures/BQ Pro Edit" }.onFailure { status = "Frame capture failed: " + (it.message ?: "unknown error") }
                         }, enabled = project.clips.any { it.mediaType == BqMediaType.VIDEO }) { Text("Capture Frame") }
                         Button(onClick = {
