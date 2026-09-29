@@ -17,6 +17,8 @@ import androidx.media3.effect.OverlayEffect
 import androidx.media3.effect.OverlaySettings
 import androidx.media3.effect.StaticOverlaySettings
 import androidx.media3.effect.TextOverlay
+import androidx.media3.effect.TimestampWrapper
+import androidx.media3.effect.Presentation
 import androidx.media3.effect.ScaleAndRotateTransformation
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
@@ -199,6 +201,20 @@ class BqMediaEngine(private val context: Context) {
         plan.blend.forEach { layer -> if (layer.opacity < 0.999f) effects += AlphaScale(layer.opacity.coerceIn(0f, 1f)) }
         plan.motionBlur?.takeIf { it.enabled }?.let { effects += GaussianBlur((it.shutterAngle / 360f * 8f).coerceIn(0.1f, 12f)) }
         if (plan.powerPresets.isNotEmpty() || plan.particles.isNotEmpty()) effects += GaussianBlur(0.6f)
+        plan.transition?.let { transition ->
+            val duration = clipDurationMs(clip)
+            val d = transition.durationMs.coerceIn(0L, duration / 2)
+            if (d > 0L) {
+                when (transition.kind) {
+                    BqTransitionKind.FADE, BqTransitionKind.DIP_BLACK, BqTransitionKind.DIP_WHITE -> {
+                        effects += TimestampWrapper(AlphaScale(0.35f + 0.65f * transition.amount.coerceIn(0f,1f)), 0L, d * 1000L)
+                        effects += TimestampWrapper(AlphaScale(0.35f + 0.65f * transition.amount.coerceIn(0f,1f)), (duration-d) * 1000L, duration * 1000L)
+                    }
+                    BqTransitionKind.BLUR -> effects += TimestampWrapper(GaussianBlur((transition.amount * 8f).coerceIn(0.1f,12f)), 0L, d * 1000L)
+                    else -> Unit
+                }
+            }
+        }
         return effects
     }
 
