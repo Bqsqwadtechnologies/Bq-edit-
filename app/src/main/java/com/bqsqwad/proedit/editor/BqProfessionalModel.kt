@@ -186,7 +186,8 @@ data class BqProject(
     val fps: Int = 30,
     val backgroundArgb: Long = 0xFF000000,
     val markersMs: List<Long> = emptyList(),
-    val lastSavedAt: Long = System.currentTimeMillis()
+    val lastSavedAt: Long = System.currentTimeMillis(),
+    val advanced: BqAdvancedEditorState = BqAdvancedEditorState()
 )
 
 data class BqExportConfig(
