@@ -312,7 +312,7 @@ private fun BqProEditApp() {
                 Card(Modifier.weight(0.9f).fillMaxSize()) {
                     Column(Modifier.fillMaxSize()) {
                         TabRow(selectedTabIndex = inspectorTab) {
-                            listOf("Inspector", "Color", "Effects", "FX", "Media", "Captions", "Keyframes", "Chroma").forEachIndexed { index, title -> Tab(selected = inspectorTab == index, onClick = { inspectorTab = index }, text = { Text(title) }) }
+                            listOf("Inspector", "Color", "Effects", "FX", "Media", "Captions", "Keyframes", "Chroma", "Advanced").forEachIndexed { index, title -> Tab(selected = inspectorTab == index, onClick = { inspectorTab = index }, text = { Text(title) }) }
                         }
                         val selected = project.clips.firstOrNull { it.id == project.selectedClipId }
                         when (inspectorTab) {
@@ -323,7 +323,8 @@ private fun BqProEditApp() {
                             4 -> MediaPanel(project, ::selectClip)
                             5 -> CaptionsPanel(project, ::commit)
                             6 -> KeyframesPanel(selected, project, ::commit)
-                            else -> ChromaPanel(selected, project, ::commit)
+                            7 -> ChromaPanel(selected, project, ::commit)
+                            else -> AdvancedPanel(project, ::commit)
                         }
                     }
                 }
@@ -560,6 +561,21 @@ private fun ChromaPanel(selected: BqClip?, project: BqProject, commit: (BqProjec
         item { Slider(chroma.spillSuppression, { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(chromaKey = chroma.copy(spillSuppression = v)) else it })) }, 0f..1f) }
         item { Text("Key color: #%08X".format(chroma.colorArgb)) }
         item { Text("Chroma settings are persisted with the clip. Rendering/export integration remains isolated in the media-effect pipeline.", style = MaterialTheme.typography.labelSmall) }
+    }
+}
+
+@Composable
+private fun AdvancedPanel(project: BqProject, commit: (BqProject) -> Unit) {
+    val a = project.advanced
+    LazyColumn(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item { Text("Professional Advanced", style = MaterialTheme.typography.titleMedium) }
+        item { Text("Advanced state is non-destructive and saved with the project.", style = MaterialTheme.typography.labelSmall) }
+        item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(8.dp)) { Text("Proxy editing"); OutlinedButton(onClick = { commit(project.copy(advanced = a.copy(proxy = a.proxy.copy(enabled = !a.proxy.enabled)))) }) { Text(if (a.proxy.enabled) "Disable proxy" else "Enable proxy") } } } }
+        item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(8.dp)) { Text("Motion blur"); val selectedId = project.selectedClipId; val current = selectedId?.let { a.motionBlur[it] } ?: com.bqsqwad.proedit.editor.BqMotionBlur(); OutlinedButton(onClick = { if (selectedId != null) { val next = a.motionBlur.toMutableMap().apply { put(selectedId, current.copy(enabled = !current.enabled)) }; commit(project.copy(advanced = a.copy(motionBlur = next))) } }, enabled = selectedId != null) { Text(if (current.enabled) "Disable clip motion blur" else "Enable clip motion blur") }; Text("Samples: " + current.samples, style = MaterialTheme.typography.labelSmall); Slider(value = current.samples.toFloat(), onValueChange = { value -> if (selectedId != null) { val next = a.motionBlur.toMutableMap().apply { put(selectedId, current.copy(samples = value.toInt().coerceIn(1,64))) }; commit(project.copy(advanced = a.copy(motionBlur = next))) } }, valueRange = 1f..64f, steps = 62) } } }
+        item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(8.dp)) { Text("Beat markers"); Button(onClick = { val t = project.playheadMs; if (a.audioMarkers.none { it.timeMs == t }) commit(project.copy(advanced = a.copy(audioMarkers = (a.audioMarkers + com.bqsqwad.proedit.editor.BqAudioMarker(t)).sortedBy { it.timeMs }))) }) { Text("Add beat at playhead") }; Text(a.audioMarkers.size.toString() + " beat marker(s)", style = MaterialTheme.typography.labelSmall) } } }
+        item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(8.dp)) { Text("Export presets"); if (a.exportPresets.isEmpty()) { OutlinedButton(onClick = { val presets = listOf(com.bqsqwad.proedit.editor.BqExportPreset("fhd30","Full HD 30",1920,1080,30,12000000),com.bqsqwad.proedit.editor.BqExportPreset("hd30","HD 30",1280,720,30,8000000),com.bqsqwad.proedit.editor.BqExportPreset("fhd60","Full HD 60",1920,1080,60,20000000)); commit(project.copy(advanced = a.copy(exportPresets = presets))) }) { Text("Create standard presets") } } else { a.exportPresets.forEach { Text(it.name + ": " + it.width + "×" + it.height + " @ " + it.fps + "fps", style = MaterialTheme.typography.bodySmall) } } } } }
+        item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(8.dp)) { Text("Power FX library"); OutlinedButton(onClick = { val preset = com.bqsqwad.proedit.editor.BqPowerPreset("energy-aura","Energy Aura",com.bqsqwad.proedit.editor.BqSuperpowerFxKind.ELECTRIC_AURA,mapOf("intensity" to 1f,"radius" to 1f)); if (a.powerPresets.none { it.id == preset.id }) commit(project.copy(advanced = a.copy(powerPresets = a.powerPresets + preset))) }) { Text("Add Energy Aura preset") }; Text(a.powerPresets.size.toString() + " power preset(s)", style = MaterialTheme.typography.labelSmall) } } }
+        item { Text("Compositor: " + a.cornerPins.size + " corner pins · " + a.rotoscopes.size + " rotoscopes · " + a.blendLayers.size + " blend layers", style = MaterialTheme.typography.labelSmall) }
     }
 }
 
