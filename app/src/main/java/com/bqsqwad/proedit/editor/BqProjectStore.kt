@@ -26,6 +26,8 @@ class BqProjectStore(context: Context) {
             put("assets", JSONArray(project.assets.map(::assetJson)))
             put("captions", JSONArray(project.captions.map(::captionJson)))
             put("markersMs", JSONArray(project.markersMs))
+            put("tracks", JSONArray(project.tracks.map(::trackJson)))
+            put("walls", JSONArray(project.walls.map(::wallJson)))
         }
         prefs.edit().putString(key, root.toString()).apply()
     }
@@ -42,6 +44,12 @@ class BqProjectStore(context: Context) {
         val captions = mutableListOf<BqCaption>()
         val captionsJson = root.optJSONArray("captions") ?: JSONArray()
         for (i in 0 until captionsJson.length()) captions += captionFromJson(captionsJson.getJSONObject(i))
+        val tracks = mutableListOf<BqTimelineTrack>()
+        val tracksJson = root.optJSONArray("tracks") ?: JSONArray()
+        for (i in 0 until tracksJson.length()) tracks += trackFromJson(tracksJson.getJSONObject(i))
+        val walls = mutableListOf<BqWallSurface>()
+        val wallsJson = root.optJSONArray("walls") ?: JSONArray()
+        for (i in 0 until wallsJson.length()) walls += wallFromJson(wallsJson.getJSONObject(i))
         val markers = mutableListOf<Long>()
         val markersJson = root.optJSONArray("markersMs") ?: JSONArray()
         for (i in 0 until markersJson.length()) markers += markersJson.optLong(i)
@@ -63,6 +71,57 @@ class BqProjectStore(context: Context) {
     }.getOrNull()
 
     fun clear() = prefs.edit().remove(key).remove("project").apply()
+
+    private fun keyframesJson(keys: List<BqKeyframe<Float>>) = JSONArray(keys.map { k -> JSONObject().apply { put("time", k.timeMs); put("value", k.value); put("interp", k.interpolation.name) } })
+    private fun floatKeys(o: JSONObject, key: String): List<BqKeyframe<Float>> {
+        val array = o.optJSONArray(key) ?: return emptyList()
+        return buildList {
+            for (i in 0 until array.length()) {
+                val k = array.optJSONObject(i) ?: continue
+                add(BqKeyframe(k.optLong("time"), k.optDouble("value").toFloat(), runCatching { BqInterpolation.valueOf(k.optString("interp")) }.getOrDefault(BqInterpolation.LINEAR)))
+            }
+        }
+    }
+    private fun pointJson(p: BqPoint) = JSONObject().apply { put("x", p.x); put("y", p.y) }
+    private fun pointFromJson(o: JSONObject) = BqPoint(o.optDouble("x").toFloat(), o.optDouble("y").toFloat())
+    private fun trackJson(t: BqTimelineTrack) = JSONObject().apply {
+        put("id", t.id); put("type", t.type.name); put("name", t.name); put("muted", t.muted); put("locked", t.locked); put("visible", t.visible)
+        put("items", JSONArray(t.items.map { item -> JSONObject().apply {
+            put("id", item.id); put("trackId", item.trackId); put("sourceUri", item.sourceUri?.toString() ?: JSONObject.NULL)
+            put("start", item.startMs); put("duration", item.durationMs); put("effects", JSONArray(item.effectIds))
+            put("transform", JSONObject().apply {
+                put("px", keyframesJson(item.transform.positionX)); put("py", keyframesJson(item.transform.positionY))
+                put("scale", keyframesJson(item.transform.scale)); put("rotation", keyframesJson(item.transform.rotation)); put("opacity", keyframesJson(item.transform.opacity))
+            })
+        } }))
+    }
+    private fun trackFromJson(o: JSONObject): BqTimelineTrack {
+        val items = buildList {
+            val a = o.optJSONArray("items") ?: JSONArray()
+            for (i in 0 until a.length()) {
+                val x = a.optJSONObject(i) ?: continue
+                val t = x.optJSONObject("transform")
+                add(BqTimelineItem(
+                    x.optString("id"), x.optString("trackId"), if (x.isNull("sourceUri")) null else Uri.parse(x.optString("sourceUri")),
+                    x.optLong("start"), x.optLong("duration"),
+                    BqTransformKeyframes(floatKeys(t ?: JSONObject(), "px"), floatKeys(t ?: JSONObject(), "py"), floatKeys(t ?: JSONObject(), "scale"), floatKeys(t ?: JSONObject(), "rotation"), floatKeys(t ?: JSONObject(), "opacity")),
+                    buildList { val e=x.optJSONArray("effects") ?: JSONArray(); for(j in 0 until e.length()) add(e.optString(j)) }
+                ))
+            }
+        }
+        return BqTimelineTrack(o.optString("id"), runCatching { BqTrackType.valueOf(o.optString("type")) }.getOrDefault(BqTrackType.VIDEO), o.optString("name"), o.optBoolean("muted"), o.optBoolean("locked"), o.optBoolean("visible", true), items)
+    }
+    private fun wallJson(w: BqWallSurface) = JSONObject().apply {
+        put("id", w.id); put("assetUri", w.assetUri?.toString() ?: JSONObject.NULL); put("feather", w.feather); put("opacity", w.opacity); put("blendMode", w.blendMode.name)
+        put("corners", JSONArray(w.corners.map(::pointJson)))
+        put("tracking", JSONArray(w.tracking.map { t -> JSONObject().apply { put("time", t.frameTimeUs); put("confidence", t.confidence); put("corners", JSONArray(t.corners.map(::pointJson))) } }))
+    }
+    private fun wallFromJson(o: JSONObject) = BqWallSurface(
+        o.optString("id"), if (o.isNull("assetUri")) null else Uri.parse(o.optString("assetUri")),
+        buildList { val a=o.optJSONArray("corners") ?: JSONArray(); for(i in 0 until a.length()) a.optJSONObject(i)?.let(::add) { } },
+        buildList { val a=o.optJSONArray("tracking") ?: JSONArray(); for(i in 0 until a.length()) { val t=a.optJSONObject(i) ?: continue; val p=t.optJSONArray("corners") ?: JSONArray(); val corners=buildList { for(j in 0 until p.length()) p.optJSONObject(j)?.let { add(pointFromJson(it)) } }; if(corners.size==4) add(BqSurfaceTrack(t.optLong("time"), corners, t.optDouble("confidence").toFloat())) } },
+        o.optDouble("feather").toFloat(), o.optDouble("opacity",1.0).toFloat(), runCatching { BqBlendMode.valueOf(o.optString("blendMode")) }.getOrDefault(BqBlendMode.NORMAL)
+    )
 
     private fun assetJson(a: BqMediaAsset) = JSONObject().apply {
         put("id", a.id); put("uri", a.uri.toString()); put("name", a.name); put("type", a.type.name)
