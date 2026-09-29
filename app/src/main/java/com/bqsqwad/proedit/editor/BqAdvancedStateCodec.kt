@@ -18,6 +18,7 @@ object BqAdvancedStateCodec {
         put("exports",JSONArray(s.exportPresets.map{JSONObject().apply{put("id",it.id);put("name",it.name);put("width",it.width);put("height",it.height);put("fps",it.fps);put("bitrate",it.bitrate)}}))
         put("beats",JSONArray(s.audioMarkers.map{JSONObject().apply{put("time",it.timeMs);put("label",it.label)}}))
         put("versions",JSONArray(s.versions.map{JSONObject().apply{put("id",it.id);put("created",it.createdAt);put("label",it.label);put("project",it.projectId)}}))
+        put("adjustmentStacks", JSONObject(s.adjustmentStacks.mapValues { (_, v) -> JSONObject().put("enabled", v.enabled).put("effectCount", v.effects.size).put("color", JSONObject().put("exposure", v.colorGrade.exposure).put("contrast", v.colorGrade.contrast).put("saturation", v.colorGrade.saturation)) }))
     }
     fun fromJson(o:JSONObject?):BqAdvancedEditorState{
         if(o==null)return BqAdvancedEditorState()
@@ -33,7 +34,8 @@ object BqAdvancedStateCodec {
         val ex=buildList{val a=o.optJSONArray("exports")?:JSONArray();for(i in 0 until a.length()){val v=a.optJSONObject(i)?:continue;add(BqExportPreset(v.optString("id"),v.optString("name"),v.optInt("width"),v.optInt("height"),v.optInt("fps",30),v.optInt("bitrate")))}}
         val beats=buildList{val a=o.optJSONArray("beats")?:JSONArray();for(i in 0 until a.length()){val v=a.optJSONObject(i)?:continue;add(BqAudioMarker(v.optLong("time"),v.optString("label","Beat")))}}
         val vers=buildList{val a=o.optJSONArray("versions")?:JSONArray();for(i in 0 until a.length()){val v=a.optJSONObject(i)?:continue;add(BqProjectVersion(v.optString("id"),v.optLong("created"),v.optString("label","Version"),v.optString("project")))}}
-        return BqAdvancedEditorState(tr,bl,pins,roto,blur,parts,presets,comps,px,ex,beats,vers)
+        val stacks=linkedMapOf<String,BqAdjustmentStack>();o.optJSONObject("adjustmentStacks")?.let{x->x.keys().forEach{k->x.optJSONObject(k)?.let{v->stacks[k]=BqAdjustmentStack(enabled=v.optBoolean("enabled",true))}}}
+        return BqAdvancedEditorState(tr,bl,pins,roto,blur,parts,presets,comps,px,ex,beats,vers,stacks)
     }
     private fun p(v:BqPoint)=JSONObject().put("x",v.x).put("y",v.y)
     private fun rp(o:JSONObject?,d:BqPoint=BqPoint(0f,0f))=o?.let{BqPoint(it.optDouble("x",d.x.toDouble()).toFloat(),it.optDouble("y",d.y.toDouble()).toFloat())}?:d
