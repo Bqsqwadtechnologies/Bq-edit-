@@ -57,6 +57,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.bqsqwad.proedit.editor.BqClip
+import com.bqsqwad.proedit.editor.BqColorGrade
 import com.bqsqwad.proedit.editor.BqEffectKind
 import com.bqsqwad.proedit.editor.BqEffectLayer
 import com.bqsqwad.proedit.editor.BqExportConfig
