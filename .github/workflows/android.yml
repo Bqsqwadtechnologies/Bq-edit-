@@ -51,13 +51,14 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git branch --show-current)" = "main"
-          test -f settings.gradle.kts
-          test -f app/build.gradle.kts
+          test -f android/settings.gradle.kts
+          test -f android/app/build.gradle.kts
           test -f app/src/main/AndroidManifest.xml
-          grep -R "com.bqsqwad.proedit" -n app/src/main | head
+          grep -R "com.bqsqwad.proedit" -n android/app/src/main | head
 
       - name: Run unit tests
         if: ${{ inputs.run_tests != false }}
+        working-directory: android
         run: gradle :app:testDebugUnitTest --stacktrace --no-daemon
 
       - name: Build debug APK
