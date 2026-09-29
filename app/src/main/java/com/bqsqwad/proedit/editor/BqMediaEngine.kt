@@ -178,6 +178,15 @@ class BqMediaEngine(private val context: Context) {
         if (clip.colorGrade.whites != 0f) effects += Brightness(clip.colorGrade.whites.coerceIn(-1f, 1f) * 0.35f)
         if (clip.colorGrade.blacks != 0f) effects += Brightness(clip.colorGrade.blacks.coerceIn(-1f, 1f) * 0.35f)
 
+        if (clip.chromaKey.enabled) {
+            effects += BqChromaKeyEffect(
+                clip.chromaKey.colorArgb,
+                clip.chromaKey.similarity,
+                clip.chromaKey.softness,
+                clip.chromaKey.spillSuppression
+            )
+        }
+
         clip.effects.filter { it.enabled }.forEach { effect ->
             val amount = effect.parameters["amount"]?.value
             when (effect.kind) {
