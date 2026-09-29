@@ -288,7 +288,7 @@ private fun BqProEditApp() {
                 Card(Modifier.weight(0.9f).fillMaxSize()) {
                     Column(Modifier.fillMaxSize()) {
                         TabRow(selectedTabIndex = inspectorTab) {
-                            listOf("Inspector", "Effects", "FX", "Media", "Captions").forEachIndexed { index, title -> Tab(selected = inspectorTab == index, onClick = { inspectorTab = index }, text = { Text(title) }) }
+                            listOf("Inspector", "Effects", "FX", "Media", "Captions", "Keyframes", "Chroma").forEachIndexed { index, title -> Tab(selected = inspectorTab == index, onClick = { inspectorTab = index }, text = { Text(title) }) }
                         }
                         val selected = project.clips.firstOrNull { it.id == project.selectedClipId }
                         when (inspectorTab) {
@@ -296,7 +296,9 @@ private fun BqProEditApp() {
                             1 -> EffectsPanel(selected, project, ::commit)
                             2 -> SuperpowerPanel(selected, project, ::commit)
                             3 -> MediaPanel(project, ::selectClip)
-                            else -> CaptionsPanel(project, ::commit)
+                            4 -> CaptionsPanel(project, ::commit)
+                            5 -> KeyframesPanel(selected, project, ::commit)
+                            else -> ChromaPanel(selected, project, ::commit)
                         }
                     }
                 }
@@ -422,6 +424,72 @@ private fun SuperpowerPanel(selected: BqClip?, project: BqProject, commit: (BqPr
             }, Modifier.fillMaxWidth()) { Text(effect.name) }
         }
         item { Text("Configured layers: ${selected.fxLayers.size}", style = MaterialTheme.typography.labelSmall) }
+    }
+}
+
+@Composable
+private fun KeyframesPanel(selected: BqClip?, project: BqProject, commit: (BqProject) -> Unit) {
+    if (selected == null) { Text("Select a clip first", Modifier.padding(16.dp)); return }
+    LazyColumn(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        item { Text("Effect keyframes", style = MaterialTheme.typography.titleMedium) }
+        item { Text("Set an effect amount at the current playhead, then move the playhead and set another value.", style = MaterialTheme.typography.labelSmall) }
+        items(selected.effects, key = { it.id }) { effect ->
+            val parameter = effect.parameters["amount"]
+            if (parameter != null) {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(8.dp)) {
+                        Text(effect.name)
+                        Text("${parameter.keyframes.size} keyframe(s)", style = MaterialTheme.typography.labelSmall)
+                        Button(onClick = {
+                            val key = com.bqsqwad.proedit.editor.BqKeyframe(project.playheadMs, parameter.value)
+                            val keys = (parameter.keyframes.filterNot { it.timeMs == key.timeMs } + key).sortedBy { it.timeMs }
+                            val params = effect.parameters.toMutableMap()
+                            params["amount"] = com.bqsqwad.proedit.editor.BqFloatParameter(parameter.value, keys)
+                            val updated = effect.copy(parameters = params)
+                            commit(project.copy(clips = project.clips.map { c ->
+                                if (c.id == selected.id) c.copy(effects = c.effects.map { if (it.id == effect.id) updated else it }) else c
+                            }))
+                        }) { Text("Add keyframe at ${project.playheadMs} ms") }
+                        if (parameter.keyframes.isNotEmpty()) {
+                            parameter.keyframes.forEach { key ->
+                                TextButton(onClick = {
+                                    val params = effect.parameters.toMutableMap()
+                                    params["amount"] = com.bqsqwad.proedit.editor.BqFloatParameter(
+                                        parameter.value, parameter.keyframes.filterNot { it.timeMs == key.timeMs }
+                                    )
+                                    val updated = effect.copy(parameters = params)
+                                    commit(project.copy(clips = project.clips.map { c ->
+                                        if (c.id == selected.id) c.copy(effects = c.effects.map { if (it.id == effect.id) updated else it }) else c
+                                    }))
+                                }) { Text("Remove ${key.timeMs} ms keyframe") }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChromaPanel(selected: BqClip?, project: BqProject, commit: (BqProject) -> Unit) {
+    if (selected == null) { Text("Select a clip first", Modifier.padding(16.dp)); return }
+    val chroma = selected.chromaKey
+    LazyColumn(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        item { Text("Chroma key / green screen", style = MaterialTheme.typography.titleMedium) }
+        item {
+            OutlinedButton(onClick = {
+                commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(chromaKey = chroma.copy(enabled = !chroma.enabled)) else it }))
+            }) { Text(if (chroma.enabled) "Disable chroma key" else "Enable chroma key") }
+        }
+        item { Text("Similarity %.2f".format(chroma.similarity)) }
+        item { Slider(chroma.similarity, { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(chromaKey = chroma.copy(similarity = v)) else it })) }, 0f..1f) }
+        item { Text("Softness %.2f".format(chroma.softness)) }
+        item { Slider(chroma.softness, { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(chromaKey = chroma.copy(softness = v)) else it })) }, 0f..1f) }
+        item { Text("Spill suppression %.2f".format(chroma.spillSuppression)) }
+        item { Slider(chroma.spillSuppression, { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(chromaKey = chroma.copy(spillSuppression = v)) else it })) }, 0f..1f) }
+        item { Text("Key color: #%08X".format(chroma.colorArgb)) }
+        item { Text("Chroma settings are persisted with the clip. Rendering/export integration remains isolated in the media-effect pipeline.", style = MaterialTheme.typography.labelSmall) }
     }
 }
 
