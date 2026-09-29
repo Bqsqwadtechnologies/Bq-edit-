@@ -18,6 +18,7 @@ object BqAdvancedStateCodec {
         put("exports",JSONArray(s.exportPresets.map{JSONObject().apply{put("id",it.id);put("name",it.name);put("width",it.width);put("height",it.height);put("fps",it.fps);put("bitrate",it.bitrate)}}))
         put("beats",JSONArray(s.audioMarkers.map{JSONObject().apply{put("time",it.timeMs);put("label",it.label)}}))
         put("versions",JSONArray(s.versions.map{JSONObject().apply{put("id",it.id);put("created",it.createdAt);put("label",it.label);put("project",it.projectId)}}))
+        put("schema", 2)
         put("adjustmentStacks", JSONObject(s.adjustmentStacks.mapValues { (_, v) -> JSONObject().put("enabled", v.enabled).put("effectCount", v.effects.size).put("color", JSONObject().put("exposure", v.colorGrade.exposure).put("contrast", v.colorGrade.contrast).put("saturation", v.colorGrade.saturation)) }))
     }
     fun fromJson(o:JSONObject?):BqAdvancedEditorState{
