@@ -164,14 +164,14 @@ jobs:
 
       - name: Upload complete build diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: bq-pro-edit-build-diagnostics
           path: android/build/ci-diagnostics/
           if-no-files-found: warn
       - name: Upload debug APK
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: bq-pro-edit-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
@@ -179,7 +179,7 @@ jobs:
 
       - name: Upload release APK
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: bq-pro-edit-release-apk
           path: android/app/build/outputs/apk/release/*.apk
@@ -187,7 +187,7 @@ jobs:
 
       - name: Upload release AAB
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: bq-pro-edit-release-aab
           path: android/app/build/outputs/bundle/release/*.aab
