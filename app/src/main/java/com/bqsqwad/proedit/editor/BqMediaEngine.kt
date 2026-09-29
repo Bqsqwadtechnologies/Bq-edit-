@@ -80,6 +80,13 @@ class BqMediaEngine(private val context: Context) {
 
     fun videoEffects(clip: BqClip): List<androidx.media3.common.Effect> = buildVideoEffects(clip)
 
+    fun videoEffects(project: BqProject, clip: BqClip): List<androidx.media3.common.Effect> {
+        val timelineStart = project.clips.takeWhile { it.id != clip.id }.sumOf { clipDurationMs(it) }
+        val effects = buildVideoEffects(clip, advancedRenderPlan(project, clip))
+        effects += captionEffects(project.captions, timelineStart, clipDurationMs(clip))
+        return effects
+    }
+
     /** Returns a deterministic render plan for advanced features that require a compositor/shader stage. */
     fun advancedRenderPlan(project: BqProject, clip: BqClip): BqRenderPlan {
         val fx = clip.fxLayers.filter { it.enabled }
