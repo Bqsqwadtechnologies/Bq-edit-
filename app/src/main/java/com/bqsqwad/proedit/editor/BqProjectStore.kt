@@ -60,6 +60,7 @@ class BqProjectStore(context: Context) {
             version = root.optInt("schema", 3),
             clips = clips,
             assets = assets,
+            tracks = tracks,
             captions = captions,
             selectedClipId = if (root.isNull("selectedClipId")) null else root.optString("selectedClipId"),
             playheadMs = root.optLong("playheadMs", 0L),
