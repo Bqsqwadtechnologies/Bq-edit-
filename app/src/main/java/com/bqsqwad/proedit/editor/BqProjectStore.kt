@@ -29,11 +29,11 @@ class BqProjectStore(context: Context) {
             put("tracks", JSONArray(project.tracks.map(::trackJson)))
             put("walls", JSONArray(project.walls.map(::wallJson)))
         }
-        prefs.edit().putString(key, root.toString()).apply()
+        prefs.edit().putString("${key}.backup", prefs.getString(key, null)).putString(key, root.toString()).apply()
     }
 
     fun load(): BqProject? = runCatching {
-        val raw = prefs.getString(key, null) ?: prefs.getString("project", null) ?: return null
+        val raw = prefs.getString(key, null) ?: prefs.getString("${key}.backup", null) ?: prefs.getString("project", null) ?: return null
         val root = JSONObject(raw)
         val clips = mutableListOf<BqClip>()
         val clipsJson = root.optJSONArray("clips") ?: JSONArray()
@@ -70,7 +70,7 @@ class BqProjectStore(context: Context) {
         )
     }.getOrNull()
 
-    fun clear() = prefs.edit().remove(key).remove("project").apply()
+    fun clear() = prefs.edit().remove(key).remove("${key}.backup").remove("project").apply()
 
     private fun keyframesJson(keys: List<BqKeyframe<Float>>) = JSONArray(keys.map { k -> JSONObject().apply { put("time", k.timeMs); put("value", k.value); put("interp", k.interpolation.name) } })
     private fun floatKeys(o: JSONObject, key: String): List<BqKeyframe<Float>> {
