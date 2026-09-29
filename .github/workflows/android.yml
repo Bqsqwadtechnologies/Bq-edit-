@@ -19,7 +19,7 @@ concurrency:
 jobs:
   verify-and-build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 7
     steps:
       - name: Checkout main only
         uses: actions/checkout@v7
