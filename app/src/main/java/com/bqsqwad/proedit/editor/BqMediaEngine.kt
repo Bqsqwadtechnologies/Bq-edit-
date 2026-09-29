@@ -110,9 +110,10 @@ class BqMediaEngine(private val context: Context) {
 
     fun editedMediaItem(clip: BqClip): EditedMediaItem = editedMediaItem(BqProject(clips = listOf(clip)), clip, 0L)
 
-    fun editedMediaItem(project: BqProject, clip: BqClip, timelineStartMs: Long): EditedMediaItem {
+    fun editedMediaItem(project: BqProject, clip: BqClip, timelineStartMs: Long, exportConfig: BqExportConfig? = null): EditedMediaItem {
         val mediaItem = mediaItem(clip)
         val videoEffects = buildVideoEffects(clip, advancedRenderPlan(project, clip))
+        exportConfig?.let { videoEffects += Presentation.createForWidthAndHeight(it.width, it.height, Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP) }
         videoEffects += captionEffects(project.captions, timelineStartMs, clipDurationMs(clip))
         val audioProcessors = buildAudioProcessors(clip)
         val effects = Effects(audioProcessors, videoEffects)
@@ -121,6 +122,7 @@ class BqMediaEngine(private val context: Context) {
             .setEffects(effects)
             .setRemoveAudio(clip.audio.muted)
             .setRemoveVideo(clip.mediaType == BqMediaType.AUDIO)
+            .apply { exportConfig?.let { setFrameRate(it.fps.coerceIn(1, 120)) } }
             .setSpeed(object : SpeedProvider {
                 override fun getSpeed(timeUs: Long): Float = clip.speed.coerceIn(0.25f, 4f)
                 override fun getNextSpeedChangeTimeUs(timeUs: Long): Long = C.TIME_UNSET
@@ -323,7 +325,7 @@ class BqMediaEngine(private val context: Context) {
 
         runCatching {
             var timelineStartMs = 0L
-            val edited = clips.map { clip -> editedMediaItem(project, clip, timelineStartMs).also { timelineStartMs += clipDurationMs(clip) } }
+            val edited = clips.map { clip -> editedMediaItem(project, clip, timelineStartMs, config).also { timelineStartMs += clipDurationMs(clip) } }
             val sequence = EditedMediaItemSequence.withAudioAndVideoFrom(edited)
             transformer.start(Composition.Builder(sequence).build(), output.absolutePath)
         }.onFailure {
