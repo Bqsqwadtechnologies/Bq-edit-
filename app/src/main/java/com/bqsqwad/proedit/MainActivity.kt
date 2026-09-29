@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
+import android.media.MediaMetadataRetriever
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -274,6 +275,17 @@ private fun BqProEditApp() {
                             commit(project.copy(clips = list, selectedClipId = list.firstOrNull()?.id))
                             player.stop(); player.clearMediaItems()
                         }, enabled = project.selectedClipId != null) { Text("Delete") }
+                        OutlinedButton(onClick = {
+                            val clip = project.clips.firstOrNull { it.id == project.selectedClipId }
+                            if (clip == null) status = "Select a video clip first" else runCatching {
+                                val retriever = MediaMetadataRetriever()
+                                retriever.setDataSource(context, clip.uri)
+                                val bitmap = retriever.getFrameAtTime((position.coerceAtLeast(0L) + clip.startMs) * 1_000L, MediaMetadataRetriever.OPTION_CLOSEST) ?: error("No video frame available")
+                                saveFrameToGallery(context, bitmap)
+                                bitmap.recycle()
+                                retriever.release()
+                            }.onSuccess { status = "Frame captured to Pictures/BQ Pro Edit" }.onFailure { status = "Frame capture failed: " + (it.message ?: "unknown error") }
+                        }, enabled = project.clips.any { it.mediaType == BqMediaType.VIDEO }) { Text("Capture Frame") }
                         Button(onClick = {
                             if (exportBusy) return@Button
                             exportBusy = true; status = "Exporting MP4…"
@@ -574,6 +586,21 @@ private fun MediaPanel(project: BqProject, onSelect: (BqClip) -> Unit) {
         item { Text("Project Media Bin", style = MaterialTheme.typography.titleMedium) }
         items(project.clips, key = { it.id }) { clip -> Card(onClick = { onSelect(clip) }) { Column(Modifier.padding(9.dp).fillMaxWidth()) { Text(clip.name); Text(clip.mediaType.name, style = MaterialTheme.typography.labelSmall); Text(clip.uri.toString(), style = MaterialTheme.typography.labelSmall, maxLines = 2) } } }
     }
+}
+
+private fun saveFrameToGallery(context: android.content.Context, bitmap: android.graphics.Bitmap) {
+    val values = ContentValues().apply {
+        put(MediaStore.Images.Media.DISPLAY_NAME, "BQ_Pro_Edit_Frame_" + System.currentTimeMillis() + ".jpg")
+        put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+        put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/BQ Pro Edit")
+        put(MediaStore.Images.Media.IS_PENDING, 1)
+    }
+    val resolver = context.contentResolver
+    val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: error("Unable to create gallery item")
+    try {
+        resolver.openOutputStream(uri)?.use { output -> if (!bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, output)) error("Unable to encode frame") } ?: error("Unable to open gallery output")
+        values.clear(); values.put(MediaStore.Images.Media.IS_PENDING, 0); resolver.update(uri, values, null, null)
+    } catch (e: Exception) { resolver.delete(uri, null, null); throw e }
 }
 
 private fun saveToGallery(context: android.content.Context, file: File) {
