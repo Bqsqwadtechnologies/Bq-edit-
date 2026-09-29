@@ -70,6 +70,8 @@ import com.bqsqwad.proedit.editor.BqProjectValidator
 import com.bqsqwad.proedit.editor.BqSuperpowerFxCatalog
 import com.bqsqwad.proedit.editor.BqSuperpowerFxKind
 import com.bqsqwad.proedit.editor.BqSubtitleSrt
+import com.bqsqwad.proedit.editor.BqSubjectPart
+import com.bqsqwad.proedit.editor.BqSubjectTarget
 import com.bqsqwad.proedit.editor.BqTimelineOps
 import java.io.File
 import java.util.UUID
