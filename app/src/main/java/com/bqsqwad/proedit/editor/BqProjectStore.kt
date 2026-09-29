@@ -149,7 +149,7 @@ class BqProjectStore(context: Context) {
         put("audio", JSONObject().apply { put("volume", c.audio.volume); put("fadeIn", c.audio.fadeInMs); put("fadeOut", c.audio.fadeOutMs); put("muted", c.audio.muted); put("solo", c.audio.solo); put("ducking", c.audio.ducking) })
         put("chroma", JSONObject().apply { put("enabled", c.chromaKey.enabled); put("color", c.chromaKey.colorArgb); put("similarity", c.chromaKey.similarity); put("softness", c.chromaKey.softness); put("spill", c.chromaKey.spillSuppression) })
         put("effects", JSONArray(c.effects.map { e -> JSONObject().apply { put("id", e.id); put("name", e.name); put("kind", e.kind.name); put("enabled", e.enabled); put("parameters", parameterJson(e.parameters)) } }))
-        put("fx", JSONArray(c.fxLayers.map { f -> JSONObject().apply { put("id", f.id); put("kind", f.kind.name); put("enabled", f.enabled); put("start", f.startMs); put("end", f.endMs ?: JSONObject.NULL); put("person", f.tracking.selectedPersonId ?: JSONObject.NULL); put("object", f.tracking.selectedObjectId ?: JSONObject.NULL); put("surface", f.tracking.selectedSurfaceId ?: JSONObject.NULL); put("confidence", f.tracking.confidenceThreshold); put("parameters", parameterJson(f.parameters)) } }))
+        put("fx", JSONArray(c.fxLayers.map { f -> JSONObject().apply { put("id", f.id); put("kind", f.kind.name); put("enabled", f.enabled); put("start", f.startMs); put("end", f.endMs ?: JSONObject.NULL); put("person", f.tracking.selectedPersonId ?: JSONObject.NULL); put("object", f.tracking.selectedObjectId ?: JSONObject.NULL); put("surface", f.tracking.selectedSurfaceId ?: JSONObject.NULL); put("confidence", f.tracking.confidenceThreshold); put("targetPart", f.tracking.target?.part?.name ?: JSONObject.NULL); put("targetFeather", f.tracking.target?.feather ?: JSONObject.NULL); put("targetExpansion", f.tracking.target?.expansion ?: JSONObject.NULL); put("parameters", parameterJson(f.parameters)) } }))
     }
 
     private fun clipFromJson(o: JSONObject): BqClip {
@@ -248,7 +248,14 @@ private fun fxFromJsonForStore(o: JSONObject) = BqFxLayer(
         selectedPersonId = if (o.isNull("person")) null else o.optInt("person"),
         selectedObjectId = if (o.isNull("object")) null else o.optInt("object"),
         selectedSurfaceId = if (o.isNull("surface")) null else o.optInt("surface"),
-        confidenceThreshold = o.optDouble("confidence", .35).toFloat()
+        confidenceThreshold = o.optDouble("confidence", .35).toFloat(),
+            target = if (o.isNull("targetPart") || o.optString("targetPart").isBlank()) null else BqSubjectTarget(
+                subjectId = o.optInt("person", -1),
+                part = runCatching { BqSubjectPart.valueOf(o.optString("targetPart")) }.getOrDefault(BqSubjectPart.WHOLE_PERSON),
+                confidenceThreshold = o.optDouble("confidence", .35).toFloat(),
+                feather = o.optDouble("targetFeather", .08).toFloat(),
+                expansion = o.optDouble("targetExpansion", 0.0).toFloat()
+            )
     ),
     parameters = parameterFromJsonForStore(o.optJSONArray("parameters"))
 )
