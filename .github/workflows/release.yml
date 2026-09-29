@@ -24,6 +24,11 @@ jobs:
           java-version: '17'
           cache: gradle
 
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.13'
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
@@ -33,7 +38,7 @@ jobs:
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
       - name: Build release APK and AAB
-        run: ./gradlew :app:assembleRelease :app:bundleRelease --stacktrace --no-daemon
+        run: gradle :app:assembleRelease :app:bundleRelease --stacktrace --no-daemon
 
       - name: Upload release APK
         uses: actions/upload-artifact@v5
