@@ -334,15 +334,62 @@ private fun Inspector(selected: BqClip?, project: BqProject, commit: (BqProject)
 private fun EffectsPanel(selected: BqClip?, project: BqProject, commit: (BqProject) -> Unit) {
     if (selected == null) { Text("Select a clip first", Modifier.padding(16.dp)); return }
     val kinds = BqEffectKind.entries
-    LazyColumn(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
         item { Text("Color / image effects", style = MaterialTheme.typography.titleMedium) }
         items(kinds) { kind ->
             OutlinedButton(onClick = {
-                val effect = BqEffectLayer(UUID.randomUUID().toString(), kind.name.replace('_', ' '), kind)
+                val defaultAmount = when (kind) {
+                    BqEffectKind.SATURATION -> 20f
+                    BqEffectKind.BLUR, BqEffectKind.GLOW -> 4f
+                    BqEffectKind.TEMPERATURE, BqEffectKind.TINT -> 8f
+                    else -> 0.15f
+                }
+                val effect = BqEffectLayer(
+                    UUID.randomUUID().toString(),
+                    kind.name.replace('_', ' '),
+                    kind,
+                    parameters = mapOf("amount" to com.bqsqwad.proedit.editor.BqFloatParameter(defaultAmount))
+                )
                 commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(effects = it.effects + effect) else it }))
             }, Modifier.fillMaxWidth()) { Text("Add ${kind.name.lowercase()}") }
         }
-        item { Text("Stacked effects: ${selected.effects.size}", style = MaterialTheme.typography.labelSmall) }
+        items(selected.effects, key = { it.id }) { effect ->
+            val amount = effect.parameters["amount"]?.value ?: 0f
+            val range = when (effect.kind) {
+                BqEffectKind.SATURATION, BqEffectKind.TEMPERATURE, BqEffectKind.TINT -> -100f..100f
+                BqEffectKind.BLUR -> 0.1f..40f
+                BqEffectKind.GLOW -> 0.1f..20f
+                else -> -1f..1f
+            }
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(effect.name, Modifier.weight(1f))
+                        TextButton(onClick = {
+                            val updated = effect.copy(enabled = !effect.enabled)
+                            commit(project.copy(clips = project.clips.map { c ->
+                                if (c.id == selected.id) c.copy(effects = c.effects.map { if (it.id == effect.id) updated else it }) else c
+                            }))
+                        }) { Text(if (effect.enabled) "On" else "Off") }
+                        TextButton(onClick = {
+                            commit(project.copy(clips = project.clips.map { c ->
+                                if (c.id == selected.id) c.copy(effects = c.effects.filterNot { it.id == effect.id }) else c
+                            }))
+                        }) { Text("Remove") }
+                    }
+                    Text("Amount: %.2f".format(amount), style = MaterialTheme.typography.labelSmall)
+                    Slider(value = amount.coerceIn(range.start, range.endInclusive), onValueChange = { value ->
+                        val params = effect.parameters.toMutableMap()
+                        params["amount"] = com.bqsqwad.proedit.editor.BqFloatParameter(value, effect.parameters["amount"]?.keyframes ?: emptyList())
+                        val updated = effect.copy(parameters = params)
+                        commit(project.copy(clips = project.clips.map { c ->
+                            if (c.id == selected.id) c.copy(effects = c.effects.map { if (it.id == effect.id) updated else it }) else c
+                        }))
+                    }, valueRange = range)
+                }
+            }
+        }
+        item { Text("Stacked effects: ${selected.effects.size}. Changes are non-destructive and persisted.", style = MaterialTheme.typography.labelSmall) }
     }
 }
 
