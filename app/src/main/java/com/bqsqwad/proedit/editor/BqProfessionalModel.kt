@@ -221,12 +221,53 @@ object BqProjectValidator {
             if (clip.endMs != null && clip.endMs <= clip.startMs) add("Clip ${clip.name}: end must be after start")
             if (clip.speed !in 0.25f..4f) add("Clip ${clip.name}: speed must be between 0.25x and 4x")
             if (clip.scale <= 0f) add("Clip ${clip.name}: scale must be positive")
+            if (clip.transform.scaleX <= 0f || clip.transform.scaleY <= 0f) add("Clip ${clip.name}: transform scale must be positive")
+            if (clip.transform.opacity !in 0f..1f) add("Clip ${clip.name}: opacity must be between 0 and 1")
+            clip.effects.forEach { effect ->
+                effect.parameters.forEach { (name, parameter) ->
+                    if (!parameter.value.isFinite()) add("Clip ${clip.name}: effect parameter $name is not finite")
+                    parameter.keyframes.zipWithNext().forEach { (a,b) -> if (b.timeMs < a.timeMs) add("Clip ${clip.name}: effect keyframes must be ordered") }
+                }
+            }
+            clip.masks.forEach { mask ->
+                if (mask.feather !in 0f..1f) add("Mask ${mask.id}: feather must be between 0 and 1")
+                if (mask.opacity !in 0f..1f) add("Mask ${mask.id}: opacity must be between 0 and 1")
+                if (mask.shape == BqMaskShape.POLYGON && mask.points.size < 3) add("Mask ${mask.id}: polygon needs at least 3 points")
+                mask.points.forEach { point -> if (!point.x.isFinite() || !point.y.isFinite()) add("Mask ${mask.id}: invalid point") }
+            }
+            clip.chromaKey.let { key ->
+                if (key.similarity !in 0f..1f) add("Clip ${clip.name}: chroma similarity must be between 0 and 1")
+                if (key.softness !in 0f..1f) add("Clip ${clip.name}: chroma softness must be between 0 and 1")
+                if (key.spillSuppression !in 0f..1f) add("Clip ${clip.name}: spill suppression must be between 0 and 1")
+            }
+            clip.fxLayers.forEach { fx ->
+                if (fx.endMs != null && fx.endMs <= fx.startMs) add("FX ${fx.id}: end must be after start")
+                if (fx.tracking.confidenceThreshold !in 0f..1f) add("FX ${fx.id}: confidence threshold must be between 0 and 1")
+                fx.masks.forEach { mask -> if (mask.opacity !in 0f..1f) add("FX ${fx.id}: mask opacity must be between 0 and 1") }
+            }
+            if (clip.audio.volume !in 0f..2f || clip.volume !in 0f..2f) add("Clip ${clip.name}: volume must be between 0 and 2")
+            if (clip.audio.fadeInMs < 0L || clip.audio.fadeOutMs < 0L) add("Clip ${clip.name}: audio fades cannot be negative")
         }
         if (project.fps !in 1..120) add("Unsupported project frame rate")
+        project.walls.forEach { wall ->
+            if (wall.opacity !in 0f..1f) add("Wall ${wall.id}: opacity must be between 0 and 1")
+            if (wall.feather !in 0f..1f) add("Wall ${wall.id}: feather must be between 0 and 1")
+            if (wall.corners.size !in 0..4) add("Wall ${wall.id}: surface must have at most 4 corners")
+            wall.corners.forEach { point -> if (!point.x.isFinite() || !point.y.isFinite()) add("Wall ${wall.id}: invalid corner") }
+            wall.tracking.forEach { track ->
+                if (track.confidence !in 0f..1f) add("Wall ${wall.id}: tracking confidence must be between 0 and 1")
+                if (track.corners.size !in 0..4) add("Wall ${wall.id}: tracking sample has too many corners")
+            }
+        }
         project.advanced.blendLayers.forEach { if (it.opacity !in 0f..1f) add("Blend layer ${it.id}: opacity must be between 0 and 1") }
-        project.advanced.motionBlur.forEach { (id, blur) -> if (blur.samples !in 1..64) add("Motion blur $id: samples must be 1..64") }
-        project.advanced.proxy.let { if (it.enabled && (it.width <= 0 || it.height <= 0 || it.bitrate <= 0)) add("Proxy settings are invalid") }
-        project.advanced.exportPresets.forEach { if (it.width <= 0 || it.height <= 0 || it.fps !in 1..120 || it.bitrate <= 0) add("Export preset ${it.name} is invalid") }
+        project.advanced.motionBlur.forEach { (id, blur) ->
+            if (blur.samples !in 1..64) add("Motion blur $id: samples must be 1..64")
+            if (blur.shutterAngle !in 0f..360f) add("Motion blur $id: shutter angle must be between 0 and 360")
+        }
+        project.advanced.cornerPins.forEach { (id,pin) ->
+            listOf(pin.topLeft,pin.topRight,pin.bottomRight,pin.bottomLeft).forEach { p -> if (!p.x.isFinite() || !p.y.isFinite()) add("Corner pin $id: invalid point") }
+        }
+        project.advanced.proxy.let { if (it.enabled && (it.width <= 0 || it.height <= 0 || it.bitrate <= 0)) add("Proxy settings are invalid") }\n        project.advanced.exportPresets.forEach { if (it.width <= 0 || it.height <= 0 || it.fps !in 1..120 || it.bitrate <= 0) add("Export preset ${it.name} is invalid") }
     }
 }
 
