@@ -145,7 +145,10 @@ private fun BqProEditApp() {
             }
             val name = uri.lastPathSegment ?: "Imported media"
             if (project.clips.any { it.uri == uri && it.mediaType == type }) null
-            else BqClip(UUID.randomUUID().toString(), uri, name, mediaType = type)
+            else {
+                val asset = engine.inspect(uri, name).copy(type = type)
+                BqClip(UUID.randomUUID().toString(), uri, name, endMs = asset.durationMs.takeIf { it > 0L }, mediaType = type)
+            }
         }
         if (newClips.isNotEmpty()) {
             val assets = newClips.map { clip -> engine.inspect(clip.uri, clip.name).copy(type = clip.mediaType) }
@@ -223,6 +226,17 @@ private fun BqProEditApp() {
                     }
                     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                         Button(onClick = { if (player.isPlaying) player.pause() else player.play() }, enabled = project.clips.any { it.mediaType == BqMediaType.VIDEO }) { Text(if (isPlaying) "Pause" else "Play") }
+                        OutlinedButton(onClick = {
+                            val clip = project.clips.firstOrNull { it.id == project.selectedClipId }
+                            if (clip != null) runCatching {
+                                val retriever = MediaMetadataRetriever()
+                                retriever.setDataSource(context, clip.uri)
+                                val bitmap = retriever.getFrameAtTime((position * 1000L).coerceAtLeast(0L), MediaMetadataRetriever.OPTION_CLOSEST)
+                                retriever.release()
+                                if (bitmap != null) saveFrameToGallery(context, bitmap)
+                                status = if (bitmap != null) "Frame captured" else "Frame capture unavailable"
+                            }.onFailure { status = "Frame capture failed: " + (it.message ?: "unknown error") }
+                        }, enabled = project.clips.any { it.mediaType == BqMediaType.VIDEO }) { Text("Frame") }
                         Spacer(Modifier.width(6.dp))
                         Text("${position / 1000}s / ${duration / 1000}s")
                         Slider(value = position.coerceIn(0L, duration).toFloat(), onValueChange = { position = it.toLong(); player.seekTo(position) }, valueRange = 0f..duration.toFloat(), Modifier.weight(1f).padding(horizontal = 8.dp))
@@ -249,10 +263,37 @@ private fun BqProEditApp() {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                         items(project.clips, key = { it.id }) { clip ->
                             Card(onClick = { selectClip(clip) }) {
-                                Column(Modifier.padding(9.dp).width(150.dp)) {
+                                Column(Modifier.padding(9.dp).width(190.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                     Text(if (clip.id == project.selectedClipId) "● ${clip.name}" else clip.name, maxLines = 1)
                                     Text("${clip.mediaType} · ${clip.speed}×", style = MaterialTheme.typography.labelSmall)
                                     Text("${clip.startMs}–${clip.endMs ?: "end"} ms", style = MaterialTheme.typography.labelSmall)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        TextButton(onClick = {
+                                            val pair = BqTimelineOps.split(clip, project.playheadMs)
+                                            if (pair == null) status = "Split needs a playhead inside the clip"
+                                            else {
+                                                val (left, right) = pair
+                                                commit(project.copy(clips = project.clips.flatMap { if (it.id == clip.id) listOf(left, right) else listOf(it) }, selectedClipId = right.id))
+                                                status = "Clip split at ${project.playheadMs} ms"
+                                            }
+                                        }) { Text("Split") }
+                                        TextButton(onClick = {
+                                            val end = clip.endMs
+                                            if (end == null || project.playheadMs <= clip.startMs || project.playheadMs >= end) status = "Trim needs a playhead inside the clip"
+                                            else {
+                                                val trimmed = BqTimelineOps.trim(clip, clip.startMs, project.playheadMs)
+                                                if (trimmed != null) { commit(project.copy(clips = project.clips.map { if (it.id == clip.id) trimmed else it })); status = "Trimmed to playhead" }
+                                            }
+                                        }) { Text("Trim") }
+                                        TextButton(onClick = {
+                                            val copy = BqTimelineOps.duplicate(clip)
+                                            commit(project.copy(clips = project.clips + copy, selectedClipId = copy.id)); status = "Clip duplicated"
+                                        }) { Text("Copy") }
+                                        TextButton(onClick = {
+                                            if (project.clips.size <= 1) status = "Keep at least one clip in the project"
+                                            else { commit(project.copy(clips = project.clips.filterNot { it.id == clip.id }, selectedClipId = project.clips.firstOrNull { it.id != clip.id }?.id)); status = "Clip deleted" }
+                                        }) { Text("Delete") }
+                                    }
                                 }
                             }
                         }
@@ -271,7 +312,7 @@ private fun BqProEditApp() {
                             1 -> ColorGradePanel(selected, project, ::commit)
                             2 -> EffectsPanel(selected, project, ::commit)
                             3 -> SuperpowerPanel(selected, project, ::commit)
-                            4 -> MediaPanel(project, ::selectClip)
+                            4 -> MediaPanel(project, ::selectClip, { picker.launch(arrayOf("video/*", "image/*", "audio/*")) })
                             5 -> CaptionsPanel(project, ::commit, { srtImport.launch(arrayOf("text/plain", "application/x-subrip", "text/srt")) }, { srtExport.launch("BQ_Pro_Edit_Captions.srt") })
                             6 -> KeyframesPanel(selected, project, ::commit)
                             7 -> ChromaPanel(selected, project, ::commit)
@@ -669,9 +710,17 @@ private fun CaptionsPanel(project: BqProject, commit: (BqProject) -> Unit, impor
 }
 
 @Composable
-private fun MediaPanel(project: BqProject, onSelect: (BqClip) -> Unit) {
+private fun MediaPanel(project: BqProject, onSelect: (BqClip) -> Unit, onImport: () -> Unit) {
     LazyColumn(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        item { Text("Project Media Bin", style = MaterialTheme.typography.titleMedium) }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("Project Media Bin", style = MaterialTheme.typography.titleMedium)
+                    Text("Import video, photo or audio. Media stays linked to the project.", style = MaterialTheme.typography.bodySmall)
+                    Button(onClick = onImport) { Text("Import media") }
+                }
+            }
+        }
         items(project.clips, key = { it.id }) { clip -> Card(onClick = { onSelect(clip) }) { Column(Modifier.padding(9.dp).fillMaxWidth()) { Text(clip.name); Text(clip.mediaType.name, style = MaterialTheme.typography.labelSmall); Text(clip.uri.toString(), style = MaterialTheme.typography.labelSmall, maxLines = 2) } } }
     }
 }
