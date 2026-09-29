@@ -34,7 +34,7 @@ class BqProjectStore(context: Context) {
     }
 
     fun load(): BqProject? = runCatching {
-        val raw = prefs.getString(key, null) ?: prefs.getString("${key}.backup", null) ?: prefs.getString("project", null) ?: return null
+        val raw = prefs.getString(key, null) ?: prefs.getString("${key}.backup", null) ?: prefs.getString("project.v4", null) ?: prefs.getString("project.v4.backup", null) ?: prefs.getString("project", null) ?: return null
         val root = JSONObject(raw)
         val clips = mutableListOf<BqClip>()
         val clipsJson = root.optJSONArray("clips") ?: JSONArray()
