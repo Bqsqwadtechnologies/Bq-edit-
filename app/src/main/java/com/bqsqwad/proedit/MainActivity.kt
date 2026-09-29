@@ -109,6 +109,7 @@ private fun BqProEditApp() {
         commit(project.copy(selectedClipId = clip.id))
         if (clip.mediaType == BqMediaType.VIDEO) {
             runCatching {
+                player.setVideoEffects(engine.videoEffects(clip))
                 player.setMediaItem(engine.mediaItem(clip), clip.startMs)
                 player.prepare()
                 player.playWhenReady = false
