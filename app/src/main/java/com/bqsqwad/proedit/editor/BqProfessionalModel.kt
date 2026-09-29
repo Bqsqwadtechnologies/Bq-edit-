@@ -83,7 +83,8 @@ data class BqTrackingBinding(
     val anchor: BqPoint? = null,
     val confidenceThreshold: Float = 0.35f,
     val manualFallback: List<BqKeyframe<BqPoint>> = emptyList(),
-    val subjectTrack: BqSubjectTrack? = null
+    val subjectTrack: BqSubjectTrack? = null,
+    val target: BqSubjectTarget? = null
 )
 
 data class BqFxLayer(
