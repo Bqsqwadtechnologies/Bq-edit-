@@ -38,6 +38,8 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -49,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -82,8 +85,31 @@ import kotlinx.coroutines.delay
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { BqProEditApp() }
+        setContent { BqProEditTheme { BqProEditApp() } }
     }
+}
+
+private val BqLightColors = lightColorScheme(
+    primary = Color(0xFF1565C0),
+    background = Color.White,
+    surface = Color.White,
+    surfaceVariant = Color(0xFFF2F4F7),
+    onBackground = Color.Black,
+    onSurface = Color.Black
+)
+
+private val BqDarkColors = darkColorScheme(
+    primary = Color(0xFF90CAF9),
+    background = Color.Black,
+    surface = Color(0xFF090909),
+    surfaceVariant = Color(0xFF181818),
+    onBackground = Color.White,
+    onSurface = Color.White
+)
+
+@Composable
+private fun BqProEditTheme(content: @Composable () -> Unit) {
+    MaterialTheme(colorScheme = if (isSystemInDarkTheme()) BqDarkColors else BqLightColors, content = content)
 }
 
 @OptIn(UnstableApi::class)
