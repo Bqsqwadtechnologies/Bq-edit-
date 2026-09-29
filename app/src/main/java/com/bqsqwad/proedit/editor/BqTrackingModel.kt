@@ -30,6 +30,17 @@ data class BqSurfaceTrack(
     init { require(corners.size == 4) { "A surface track needs four corners" } }
 }
 
+data class BqSubjectTrack(
+    val subjectId: Int,
+    val label: String = "person",
+    val detections: List<BqTrackedObject> = emptyList(),
+    val confidenceThreshold: Float = 0.35f
+) {
+    fun detectionAt(frameTimeUs: Long): BqTrackedObject? =
+        detections.minByOrNull { kotlin.math.abs(it.frameTimeUs - frameTimeUs) }
+            ?.takeIf { it.confidence >= confidenceThreshold }
+}
+
 data class BqFxSelection(
     val effectId: String,
     val targetPersonId: Int? = null,
