@@ -8,11 +8,11 @@ import org.json.JSONObject
 /** Versioned local project persistence with migration-safe defaults. */
 class BqProjectStore(context: Context) {
     private val prefs = context.getSharedPreferences("bq_pro_edit_projects", Context.MODE_PRIVATE)
-    private val key = "project.v4"
+    private val key = "project.v5"
 
     fun save(project: BqProject) {
         val root = JSONObject().apply {
-            put("schema", 4)
+            put("schema", 5)
             put("id", project.id)
             put("name", project.name)
             put("version", project.version)
@@ -28,6 +28,7 @@ class BqProjectStore(context: Context) {
             put("markersMs", JSONArray(project.markersMs))
             put("tracks", JSONArray(project.tracks.map(::trackJson)))
             put("walls", JSONArray(project.walls.map(::wallJson)))
+            put("advanced", BqAdvancedStateCodec.toJson(project.advanced))
         }
         prefs.edit().putString("${key}.backup", prefs.getString(key, null)).putString(key, root.toString()).apply()
     }
@@ -66,11 +67,12 @@ class BqProjectStore(context: Context) {
             fps = root.optInt("fps", 30),
             backgroundArgb = root.optLong("backgroundArgb", 0xFF000000),
             markersMs = markers,
-            lastSavedAt = root.optLong("lastSavedAt", System.currentTimeMillis())
+            lastSavedAt = root.optLong("lastSavedAt", System.currentTimeMillis()),
+            advanced = BqAdvancedStateCodec.fromJson(root.optJSONObject("advanced"))
         )
     }.getOrNull()
 
-    fun clear() = prefs.edit().remove(key).remove("${key}.backup").remove("project").apply()
+    fun clear() = prefs.edit().remove(key).remove("${key}.backup").remove("project.v4").remove("project.v4.backup").remove("project").apply()
 
     private fun keyframesJson(keys: List<BqKeyframe<Float>>) = JSONArray(keys.map { k -> JSONObject().apply { put("time", k.timeMs); put("value", k.value); put("interp", k.interpolation.name) } })
     private fun floatKeys(o: JSONObject, key: String): List<BqKeyframe<Float>> {
