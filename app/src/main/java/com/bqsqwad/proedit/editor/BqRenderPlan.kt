@@ -12,5 +12,6 @@ data class BqRenderPlan(
     val compositions: List<BqFxComposition> = emptyList(),
     val proxy: BqProxySettings? = null,
     val masks: List<BqMask> = emptyList(),
-    val trackedAnchors: Map<String, BqPoint> = emptyMap()
+    val trackedAnchors: Map<String, BqPoint> = emptyMap(),
+    val subjectTrack: BqSubjectTrack? = null
 )
