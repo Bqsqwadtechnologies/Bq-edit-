@@ -7,10 +7,12 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.audio.DefaultGainProvider
 import androidx.media3.common.audio.GainProcessor
+import androidx.media3.effect.AlphaScale
 import androidx.media3.effect.Brightness
 import androidx.media3.effect.Contrast
 import androidx.media3.effect.GaussianBlur
 import androidx.media3.effect.HslAdjustment
+import androidx.media3.effect.MatrixTransformation
 import androidx.media3.effect.ScaleAndRotateTransformation
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
@@ -90,11 +92,27 @@ class BqMediaEngine(private val context: Context) {
     private fun buildVideoEffects(clip: BqClip): List<androidx.media3.common.Effect> {
         val effects = mutableListOf<androidx.media3.common.Effect>()
 
-        if (clip.scale != 1f || clip.rotationDegrees != 0f) {
+        val scaleX = (clip.scale * clip.transform.scaleX).coerceIn(0.1f, 8f)
+        val scaleY = (clip.scale * clip.transform.scaleY).coerceIn(0.1f, 8f)
+        val rotation = (clip.rotationDegrees + clip.transform.rotation) % 360f
+        val translateX = (clip.x + clip.transform.x).coerceIn(-2f, 2f)
+        val translateY = (clip.y + clip.transform.y).coerceIn(-2f, 2f)
+
+        if (scaleX != 1f || scaleY != 1f || rotation != 0f) {
             effects += ScaleAndRotateTransformation.Builder()
-                .setScale(clip.scale.coerceIn(0.1f, 8f), clip.scale.coerceIn(0.1f, 8f))
-                .setRotationDegrees(clip.rotationDegrees % 360f)
+                .setScale(scaleX, scaleY)
+                .setRotationDegrees(rotation)
                 .build()
+        }
+        if (translateX != 0f || translateY != 0f) {
+            effects += MatrixTransformation { _ ->
+                android.graphics.Matrix().apply {
+                    postTranslate(translateX, translateY)
+                }
+            }
+        }
+        if (clip.transform.opacity < 0.999f) {
+            effects += AlphaScale(clip.transform.opacity.coerceIn(0f, 1f))
         }
 
         clip.effects.filter { it.enabled }.forEach { effect ->
