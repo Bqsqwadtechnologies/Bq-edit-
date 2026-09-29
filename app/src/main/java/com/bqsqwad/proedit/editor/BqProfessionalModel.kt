@@ -224,3 +224,121 @@ object BqProjectValidator {
         if (project.fps !in 1..120) add("Unsupported project frame rate")
     }
 }
+
+
+enum class BqCurveEasing { LINEAR, EASE_IN, EASE_OUT, EASE_IN_OUT, HOLD, BEZIER }
+
+data class BqTransitionSpec(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val kind: BqTransitionKind = BqTransitionKind.CUT,
+    val durationMs: Long = 0L,
+    val easing: BqCurveEasing = BqCurveEasing.LINEAR,
+    val amount: Float = 1f
+)
+
+data class BqBlendLayer(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val sourceClipId: String,
+    val mode: BqBlendMode = BqBlendMode.NORMAL,
+    val opacity: Float = 1f,
+    val enabled: Boolean = true
+)
+
+data class BqCornerPin(
+    val enabled: Boolean = false,
+    val topLeft: BqPoint = BqPoint(0f, 0f),
+    val topRight: BqPoint = BqPoint(1f, 0f),
+    val bottomRight: BqPoint = BqPoint(1f, 1f),
+    val bottomLeft: BqPoint = BqPoint(0f, 1f),
+    val keyframes: List<BqKeyframe<List<BqPoint>>> = emptyList()
+)
+
+data class BqRotoscopeRefinement(
+    val enabled: Boolean = false,
+    val points: List<BqPoint> = emptyList(),
+    val feather: Float = 0f,
+    val expansion: Float = 0f,
+    val invert: Boolean = false
+)
+
+data class BqMotionBlur(
+    val enabled: Boolean = false,
+    val shutterAngle: Float = 180f,
+    val samples: Int = 8
+)
+
+data class BqParticleEmitter(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val enabled: Boolean = true,
+    val rate: Float = 40f,
+    val lifetimeMs: Long = 800L,
+    val size: Float = 1f,
+    val speed: Float = 1f,
+    val turbulence: Float = 0f,
+    val gravity: Float = 0f
+)
+
+data class BqPowerPreset(
+    val id: String,
+    val name: String,
+    val kind: BqSuperpowerFxKind,
+    val parameters: Map<String, Float> = emptyMap()
+)
+
+data class BqFxComposition(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val name: String = "FX Composition",
+    val layers: List<String> = emptyList(),
+    val enabled: Boolean = true
+)
+
+data class BqProxySettings(
+    val enabled: Boolean = false,
+    val width: Int = 960,
+    val height: Int = 540,
+    val videoMime: String = "video/avc",
+    val bitrate: Int = 2_500_000
+)
+
+data class BqExportPreset(
+    val id: String,
+    val name: String,
+    val width: Int,
+    val height: Int,
+    val fps: Int,
+    val bitrate: Int
+)
+
+data class BqAudioMarker(
+    val timeMs: Long,
+    val label: String = "Beat"
+)
+
+data class BqProjectVersion(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val createdAt: Long = System.currentTimeMillis(),
+    val label: String = "Version",
+    val projectId: String
+)
+
+data class BqAdjustmentStack(
+    val effects: List<BqEffectLayer> = emptyList(),
+    val colorGrade: BqColorGrade = BqColorGrade(),
+    val enabled: Boolean = true
+)
+
+data class BqAdvancedEditorState(
+    val transitions: Map<String, BqTransitionSpec> = emptyMap(),
+    val blendLayers: List<BqBlendLayer> = emptyList(),
+    val cornerPins: Map<String, BqCornerPin> = emptyMap(),
+    val rotoscopes: Map<String, BqRotoscopeRefinement> = emptyMap(),
+    val motionBlur: Map<String, BqMotionBlur> = emptyMap(),
+    val particleEmitters: List<BqParticleEmitter> = emptyList(),
+    val powerPresets: List<BqPowerPreset> = emptyList(),
+    val compositions: List<BqFxComposition> = emptyList(),
+    val proxy: BqProxySettings = BqProxySettings(),
+    val exportPresets: List<BqExportPreset> = emptyList(),
+    val audioMarkers: List<BqAudioMarker> = emptyList(),
+    val versions: List<BqProjectVersion> = emptyList(),
+    val adjustmentStacks: Map<String, BqAdjustmentStack> = emptyMap()
+)
