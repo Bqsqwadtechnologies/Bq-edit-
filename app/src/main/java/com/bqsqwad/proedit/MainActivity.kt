@@ -94,6 +94,7 @@ private fun BqProEditApp() {
     var duration by remember { mutableLongStateOf(1L) }
     var status by remember { mutableStateOf<String?>(null) }
     var showRename by remember { mutableStateOf(false) }
+    var showNewProject by remember { mutableStateOf(false) }
     var inspectorTab by remember { mutableStateOf(0) }
     var exportBusy by remember { mutableStateOf(false) }
 
@@ -177,6 +178,8 @@ private fun BqProEditApp() {
                     Text("BQ Pro Edit · BQ Sqwad Technologies", style = MaterialTheme.typography.labelSmall)
                 }
                 OutlinedButton(onClick = { showRename = true }) { Text("Rename") }
+                Spacer(Modifier.width(4.dp))
+                OutlinedButton(onClick = { showNewProject = true }) { Text("New") }
                 Spacer(Modifier.width(4.dp))
                 OutlinedButton(onClick = { history.undo()?.let { project = it; store.save(it) } }, enabled = history.canUndo) { Text("Undo") }
                 Spacer(Modifier.width(4.dp))
@@ -310,6 +313,29 @@ private fun BqProEditApp() {
     if (showRename) {
         var value by remember(project.id) { mutableStateOf(project.name) }
         AlertDialog(onDismissRequest = { showRename = false }, title = { Text("Rename project") }, text = { androidx.compose.material3.OutlinedTextField(value, { value = it }, label = { Text("Project name") }) }, confirmButton = { TextButton(onClick = { commit(project.copy(name = value.trim().ifBlank { "Untitled Project" })); showRename = false }) { Text("Save") } }, dismissButton = { TextButton(onClick = { showRename = false }) { Text("Cancel") } })
+    if (showNewProject) {
+        AlertDialog(
+            onDismissRequest = { showNewProject = false },
+            title = { Text("New project") },
+            text = { Text("Start a fresh project? The current project is already saved locally and can be reopened by restarting BQ Pro Edit.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val fresh = BqProject()
+                    history.commit(fresh)
+                    project = history.current
+                    store.save(project)
+                    position = 0L
+                    duration = 1L
+                    player.stop()
+                    player.clearMediaItems()
+                    showNewProject = false
+                    status = "New project created"
+                }) { Text("Create") }
+            },
+            dismissButton = { TextButton(onClick = { showNewProject = false }) { Text("Cancel") } }
+        )
+    }
+
     }
 }
 
