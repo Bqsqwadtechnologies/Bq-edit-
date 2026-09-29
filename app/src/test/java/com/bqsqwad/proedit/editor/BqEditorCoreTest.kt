@@ -56,4 +56,13 @@ class BqEditorCoreTest {
         val bad = BqProject(clips = listOf(BqClip("a", uri, "bad", startMs = 10_000, endMs = 1_000)))
         assertTrue(BqProjectValidator.validate(bad).isNotEmpty())
     }
+    @Test fun snapUsesNearestCandidateWithinThreshold() {
+        assertEquals(1_020L, BqTimelineOps.snap(1_000L, listOf(500L, 1_020L), 50L))
+        assertEquals(1_000L, BqTimelineOps.snap(1_000L, listOf(1_200L), 50L))
+    }
+
+    @Test fun projectValidatorRejectsUnsupportedFps() {
+        assertTrue(BqProjectValidator.validate(BqProject(fps = 0)).any { it.contains("frame rate") })
+    }
+
 }
