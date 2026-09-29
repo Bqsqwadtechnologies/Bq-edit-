@@ -8,11 +8,11 @@ import org.json.JSONObject
 /** Versioned local project persistence with migration-safe defaults. */
 class BqProjectStore(context: Context) {
     private val prefs = context.getSharedPreferences("bq_pro_edit_projects", Context.MODE_PRIVATE)
-    private val key = "project.v3"
+    private val key = "project.v4"
 
     fun save(project: BqProject) {
         val root = JSONObject().apply {
-            put("schema", 3)
+            put("schema", 4)
             put("id", project.id)
             put("name", project.name)
             put("version", project.version)
@@ -99,12 +99,84 @@ class BqProjectStore(context: Context) {
             trackId = o.optString("trackId", "video-1"), mediaType = runCatching { BqMediaType.valueOf(o.optString("mediaType")) }.getOrDefault(BqMediaType.VIDEO),
             transform = BqTransform(t?.optDouble("x", 0.0)?.toFloat() ?: 0f, t?.optDouble("y", 0.0)?.toFloat() ?: 0f, t?.optDouble("sx", 1.0)?.toFloat() ?: 1f, t?.optDouble("sy", 1.0)?.toFloat() ?: 1f, t?.optDouble("r", 0.0)?.toFloat() ?: 0f, t?.optDouble("opacity", 1.0)?.toFloat() ?: 1f),
             audio = BqAudioSettings(a?.optDouble("volume", 1.0)?.toFloat() ?: 1f, a?.optLong("fadeIn") ?: 0L, a?.optLong("fadeOut") ?: 0L, a?.optBoolean("muted") ?: false, a?.optBoolean("solo") ?: false, a?.optDouble("ducking")?.toFloat() ?: 0f),
-            chromaKey = BqChromaKey(ch?.optBoolean("enabled") ?: false, ch?.optLong("color") ?: 0xFF00FF00, ch?.optDouble("similarity", .4)?.toFloat() ?: .4f, ch?.optDouble("softness", .1)?.toFloat() ?: .1f, ch?.optDouble("spill")?.toFloat() ?: 0f)
+            chromaKey = BqChromaKey(ch?.optBoolean("enabled") ?: false, ch?.optLong("color") ?: 0xFF00FF00, ch?.optDouble("similarity", .4)?.toFloat() ?: .4f, ch?.optDouble("softness", .1)?.toFloat() ?: .1f, ch?.optDouble("spill")?.toFloat() ?: 0f),
+            effects = o.optJSONArray("effects").toEffectList(),
+            fxLayers = o.optJSONArray("fx").toFxList()
         )
+    }
+
+    private fun effectFromJson(o: JSONObject) = BqEffectLayer(
+        id = o.optString("id", java.util.UUID.randomUUID().toString()),
+        name = o.optString("name", "Effect"),
+        kind = runCatching { BqEffectKind.valueOf(o.optString("kind")) }.getOrDefault(BqEffectKind.BRIGHTNESS),
+        enabled = o.optBoolean("enabled", true),
+        parameters = parameterFromJson(o.optJSONArray("parameters"))
+    )
+
+    private fun fxFromJson(o: JSONObject) = BqFxLayer(
+        id = o.optString("id", java.util.UUID.randomUUID().toString()),
+        kind = runCatching { BqSuperpowerFxKind.valueOf(o.optString("kind")) }.getOrDefault(BqSuperpowerFxKind.GLOW_AURA),
+        enabled = o.optBoolean("enabled", true),
+        startMs = o.optLong("start"),
+        endMs = if (o.isNull("end")) null else o.optLong("end"),
+        tracking = BqTrackingBinding(
+            selectedPersonId = if (o.isNull("person")) null else o.optInt("person"),
+            selectedObjectId = if (o.isNull("object")) null else o.optInt("object"),
+            selectedSurfaceId = if (o.isNull("surface")) null else o.optInt("surface"),
+            confidenceThreshold = o.optDouble("confidence", .35).toFloat()
+        ),
+        parameters = parameterFromJson(o.optJSONArray("parameters"))
+    )
+
+    private fun parameterFromJson(array: JSONArray?): Map<String, BqFloatParameter> {
+        if (array == null) return emptyMap()
+        val result = linkedMapOf<String, BqFloatParameter>()
+        for (i in 0 until array.length()) {
+            val o = array.optJSONObject(i) ?: continue
+            val keys = mutableListOf<BqKeyframe<Float>>()
+            val keyArray = o.optJSONArray("keys")
+            if (keyArray != null) for (j in 0 until keyArray.length()) {
+                val k = keyArray.optJSONObject(j) ?: continue
+                keys += BqKeyframe(
+                    k.optLong("time"),
+                    k.optDouble("value").toFloat(),
+                    runCatching { BqInterpolation.valueOf(k.optString("interp")) }.getOrDefault(BqInterpolation.LINEAR)
+                )
+            }
+            result[o.optString("key")] = BqFloatParameter(o.optDouble("value").toFloat(), keys)
+        }
+        return result
     }
 
     private fun parameterJson(map: Map<String, BqFloatParameter>) = JSONArray(map.map { (key, p) -> JSONObject().apply { put("key", key); put("value", p.value); put("keys", JSONArray(p.keyframes.map { k -> JSONObject().apply { put("time", k.timeMs); put("value", k.value); put("interp", k.interpolation.name) } })) } })
 
     private fun captionJson(c: BqCaption) = JSONObject().apply { put("id", c.id); put("text", c.text); put("start", c.startMs); put("end", c.endMs); put("font", c.fontFamily); put("size", c.sizeSp); put("color", c.colorArgb); put("stroke", c.strokeArgb); put("strokeWidth", c.strokeWidth); put("x", c.x); put("y", c.y) }
     private fun captionFromJson(o: JSONObject) = BqCaption(o.optString("id"), o.optString("text"), o.optLong("start"), o.optLong("end"), o.optString("font", "sans-serif"), o.optDouble("size", 24.0).toFloat(), o.optLong("color", 0xFFFFFFFF), o.optLong("stroke", 0xFF000000), o.optDouble("strokeWidth", 2.0).toFloat(), o.optDouble("x", .5).toFloat(), o.optDouble("y", .85).toFloat())
+}
+
+private fun JSONArray?.toEffectList(): List<BqEffectLayer> {
+    if (this == null) return emptyList()
+    return buildList { for (i in 0 until length()) optJSONObject(i)?.let { add(effectFromJsonForStore(it)) } }
+}
+
+private fun JSONArray?.toFxList(): List<BqFxLayer> {
+    if (this == null) return emptyList()
+    return buildList { for (i in 0 until length()) optJSONObject(i)?.let { add(fxFromJsonForStore(it)) } }
+}
+
+private fun effectFromJsonForStore(o: JSONObject) = BqEffectLayer(
+    id = o.optString("id", java.util.UUID.randomUUID().toString()),
+    name = o.optString("name", "Effect"),
+    kind = runCatching { BqEffectKind.valueOf(o.optString("kind")) }.getOrDefault(BqEffectKind.BRIGHTNESS),
+    enabled = o.optBoolean("enabled", true),
+    parameters = emptyMap()
+)
+
+private fun fxFromJsonForStore(o: JSONObject) = BqFxLayer(
+    id = o.optString("id", java.util.UUID.randomUUID().toString()),
+    kind = runCatching { BqSuperpowerFxKind.valueOf(o.optString("kind")) }.getOrDefault(BqSuperpowerFxKind.GLOW_AURA),
+    enabled = o.optBoolean("enabled", true),
+    startMs = o.optLong("start"),
+    endMs = if (o.isNull("end")) null else o.optLong("end")
+)
 }
