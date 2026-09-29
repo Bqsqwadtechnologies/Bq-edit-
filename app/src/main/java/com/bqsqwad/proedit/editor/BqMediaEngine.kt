@@ -72,6 +72,8 @@ class BqMediaEngine(private val context: Context) {
         }
     }
 
+    fun videoEffects(clip: BqClip): List<androidx.media3.common.Effect> = buildVideoEffects(clip)
+
     fun editedMediaItem(clip: BqClip): EditedMediaItem {
         val mediaItem = mediaItem(clip)
         val videoEffects = buildVideoEffects(clip)
