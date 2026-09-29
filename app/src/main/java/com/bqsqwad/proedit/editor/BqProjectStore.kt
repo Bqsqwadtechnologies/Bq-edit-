@@ -118,7 +118,7 @@ class BqProjectStore(context: Context) {
     }
     private fun wallFromJson(o: JSONObject) = BqWallSurface(
         o.optString("id"), if (o.isNull("assetUri")) null else Uri.parse(o.optString("assetUri")),
-        buildList { val a=o.optJSONArray("corners") ?: JSONArray(); for(i in 0 until a.length()) a.optJSONObject(i)?.let(::add) { } },
+        buildList { val a=o.optJSONArray("corners") ?: JSONArray(); for(i in 0 until a.length()) a.optJSONObject(i)?.let { add(pointFromJson(it)) } },
         buildList { val a=o.optJSONArray("tracking") ?: JSONArray(); for(i in 0 until a.length()) { val t=a.optJSONObject(i) ?: continue; val p=t.optJSONArray("corners") ?: JSONArray(); val corners=buildList { for(j in 0 until p.length()) p.optJSONObject(j)?.let { add(pointFromJson(it)) } }; if(corners.size==4) add(BqSurfaceTrack(t.optLong("time"), corners, t.optDouble("confidence").toFloat())) } },
         o.optDouble("feather").toFloat(), o.optDouble("opacity",1.0).toFloat(), runCatching { BqBlendMode.valueOf(o.optString("blendMode")) }.getOrDefault(BqBlendMode.NORMAL)
     )
