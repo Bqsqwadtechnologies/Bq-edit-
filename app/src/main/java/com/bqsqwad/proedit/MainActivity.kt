@@ -609,7 +609,36 @@ private fun AdvancedPanel(project: BqProject, commit: (BqProject) -> Unit) {
         item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(8.dp)) { Text("Beat markers"); Button(onClick = { val t = project.playheadMs; if (a.audioMarkers.none { it.timeMs == t }) commit(project.copy(advanced = a.copy(audioMarkers = (a.audioMarkers + com.bqsqwad.proedit.editor.BqAudioMarker(t)).sortedBy { it.timeMs }))) }) { Text("Add beat at playhead") }; Text(a.audioMarkers.size.toString() + " beat marker(s)", style = MaterialTheme.typography.labelSmall) } } }
         item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(8.dp)) { Text("Export presets"); if (a.exportPresets.isEmpty()) { OutlinedButton(onClick = { val presets = listOf(com.bqsqwad.proedit.editor.BqExportPreset("fhd30","Full HD 30",1920,1080,30,12000000),com.bqsqwad.proedit.editor.BqExportPreset("hd30","HD 30",1280,720,30,8000000),com.bqsqwad.proedit.editor.BqExportPreset("fhd60","Full HD 60",1920,1080,60,20000000)); commit(project.copy(advanced = a.copy(exportPresets = presets))) }) { Text("Create standard presets") } } else { a.exportPresets.forEach { Text(it.name + ": " + it.width + "×" + it.height + " @ " + it.fps + "fps", style = MaterialTheme.typography.bodySmall) } } } } }
         item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(8.dp)) { Text("Power FX library"); OutlinedButton(onClick = { val preset = com.bqsqwad.proedit.editor.BqPowerPreset("energy-aura","Energy Aura",com.bqsqwad.proedit.editor.BqSuperpowerFxKind.ELECTRIC_AURA,mapOf("intensity" to 1f,"radius" to 1f)); if (a.powerPresets.none { it.id == preset.id }) commit(project.copy(advanced = a.copy(powerPresets = a.powerPresets + preset))) }) { Text("Add Energy Aura preset") }; Text(a.powerPresets.size.toString() + " power preset(s)", style = MaterialTheme.typography.labelSmall) } } }
-        item { Text("Compositor state: " + a.cornerPins.size + " corner pins · " + a.rotoscopes.size + " rotoscopes · " + a.blendLayers.size + " blend layers · " + a.particleEmitters.size + " particle emitters", style = MaterialTheme.typography.labelSmall) }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("Transition builder")
+                    val id = project.selectedClipId
+                    val current = id?.let { a.transitions[it] } ?: BqTransitionSpec()
+                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        OutlinedButton(enabled = id != null, onClick = {
+                            val clipId = id ?: return@OutlinedButton
+                            commit(project.copy(advanced = a.copy(transitions = a.transitions + (clipId to current.copy(kind = BqTransitionKind.FADE, durationMs = 500L)))))
+                        }) { Text("Fade") }
+                        OutlinedButton(enabled = id != null, onClick = {
+                            val clipId = id ?: return@OutlinedButton
+                            commit(project.copy(advanced = a.copy(transitions = a.transitions + (clipId to current.copy(kind = BqTransitionKind.DIP_BLACK, durationMs = 500L)))))
+                        }) { Text("Dip black") }
+                        OutlinedButton(enabled = id != null, onClick = {
+                            val clipId = id ?: return@OutlinedButton
+                            commit(project.copy(advanced = a.copy(transitions = a.transitions + (clipId to current.copy(kind = BqTransitionKind.BLUR, durationMs = 500L)))))
+                        }) { Text("Blur") }
+                    }
+                    if (id != null) {
+                        Text("Duration: " + current.durationMs + " ms", style = MaterialTheme.typography.labelSmall)
+                        Slider(current.durationMs.toFloat(), { v ->
+                            commit(project.copy(advanced = a.copy(transitions = a.transitions + (id to current.copy(durationMs = v.toLong().coerceIn(0L, 5000L))))))
+                        }, 0f..5000f)
+                    }
+                    Text("Compositor: " + a.cornerPins.size + " pins · " + a.rotoscopes.size + " rotoscopes · " + a.blendLayers.size + " blend layers · " + a.particleEmitters.size + " particle emitters", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
     }
 }
 
