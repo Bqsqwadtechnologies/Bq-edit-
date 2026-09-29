@@ -18,6 +18,16 @@ object BqTrackingEvaluator {
     fun accepted(binding: BqTrackingBinding, confidence: Float): Boolean =
         confidence.isFinite() && confidence >= binding.confidenceThreshold.coerceIn(0f, 1f)
 
+    fun subjectDetection(binding: BqTrackingBinding, timeMsUs: Long): BqTrackedObject? =
+        binding.subjectTrack?.detectionAt(timeMsUs)
+
+    fun targetAccepted(binding: BqTrackingBinding, timeMsUs: Long): Boolean {
+        val target = binding.target ?: return binding.selectedPersonId != null
+        val detection = binding.subjectTrack?.detectionAt(timeMsUs)
+        return detection?.trackingId == target.subjectId &&
+            detection.confidence >= target.confidenceThreshold
+    }
+
     fun active(fx: BqFxLayer, timeMs: Long): Boolean =
         fx.enabled && timeMs >= fx.startMs && (fx.endMs == null || timeMs < fx.endMs)
 }
