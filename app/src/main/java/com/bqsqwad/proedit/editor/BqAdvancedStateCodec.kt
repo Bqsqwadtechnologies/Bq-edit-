@@ -2,6 +2,7 @@ package com.bqsqwad.proedit.editor
 
 import org.json.JSONArray
 import org.json.JSONObject
+import android.net.Uri
 
 /** Version-tolerant persistence for advanced editor state. */
 object BqAdvancedStateCodec {
@@ -19,7 +20,43 @@ object BqAdvancedStateCodec {
         put("beats",JSONArray(s.audioMarkers.map{JSONObject().apply{put("time",it.timeMs);put("label",it.label)}}))
         put("versions",JSONArray(s.versions.map{JSONObject().apply{put("id",it.id);put("created",it.createdAt);put("label",it.label);put("project",it.projectId)}}))
         put("schema", 2)
-        put("adjustmentStacks", JSONObject(s.adjustmentStacks.mapValues { (_, v) -> JSONObject().put("enabled", v.enabled).put("effectCount", v.effects.size).put("color", JSONObject().put("exposure", v.colorGrade.exposure).put("contrast", v.colorGrade.contrast).put("saturation", v.colorGrade.saturation)) }))
+        put("adjustmentStacks", JSONObject(s.adjustmentStacks.mapValues { (_, v) ->
+            JSONObject().apply {
+                put("enabled", v.enabled)
+                put("color", JSONObject().apply {
+                    put("exposure", v.colorGrade.exposure)
+                    put("contrast", v.colorGrade.contrast)
+                    put("highlights", v.colorGrade.highlights)
+                    put("shadows", v.colorGrade.shadows)
+                    put("whites", v.colorGrade.whites)
+                    put("blacks", v.colorGrade.blacks)
+                    put("saturation", v.colorGrade.saturation)
+                    put("temperature", v.colorGrade.temperature)
+                    put("tint", v.colorGrade.tint)
+                    v.colorGrade.lutUri?.let { put("lutUri", it.toString()) }
+                })
+                put("effects", JSONArray(v.effects.map { effect ->
+                    JSONObject().apply {
+                        put("id", effect.id)
+                        put("name", effect.name)
+                        put("kind", effect.kind.name)
+                        put("enabled", effect.enabled)
+                        put("parameters", JSONObject(effect.parameters.mapValues { (_, p) ->
+                            JSONObject().apply {
+                                put("value", p.value)
+                                put("keyframes", JSONArray(p.keyframes.map { k ->
+                                    JSONObject().apply {
+                                        put("time", k.timeMs)
+                                        put("value", k.value)
+                                        put("interpolation", k.interpolation.name)
+                                    }
+                                }))
+                            }
+                        }))
+                    }
+                }))
+            }
+        }))
     }
     fun fromJson(o:JSONObject?):BqAdvancedEditorState{
         if(o==null)return BqAdvancedEditorState()
@@ -35,7 +72,48 @@ object BqAdvancedStateCodec {
         val ex=buildList{val a=o.optJSONArray("exports")?:JSONArray();for(i in 0 until a.length()){val v=a.optJSONObject(i)?:continue;add(BqExportPreset(v.optString("id"),v.optString("name"),v.optInt("width"),v.optInt("height"),v.optInt("fps",30),v.optInt("bitrate")))}}
         val beats=buildList{val a=o.optJSONArray("beats")?:JSONArray();for(i in 0 until a.length()){val v=a.optJSONObject(i)?:continue;add(BqAudioMarker(v.optLong("time"),v.optString("label","Beat")))}}
         val vers=buildList{val a=o.optJSONArray("versions")?:JSONArray();for(i in 0 until a.length()){val v=a.optJSONObject(i)?:continue;add(BqProjectVersion(v.optString("id"),v.optLong("created"),v.optString("label","Version"),v.optString("project")))}}
-        val stacks=linkedMapOf<String,BqAdjustmentStack>();o.optJSONObject("adjustmentStacks")?.let{x->x.keys().forEach{k->x.optJSONObject(k)?.let{v->stacks[k]=BqAdjustmentStack(enabled=v.optBoolean("enabled",true))}}}
+        val stacks=linkedMapOf<String,BqAdjustmentStack>();o.optJSONObject("adjustmentStacks")?.let{x->x.keys().forEach{k->x.optJSONObject(k)?.let{v->
+            val color=v.optJSONObject("color")?.let { q -> BqColorGrade(
+                exposure=q.optDouble("exposure",0.0).toFloat(),
+                contrast=q.optDouble("contrast",0.0).toFloat(),
+                highlights=q.optDouble("highlights",0.0).toFloat(),
+                shadows=q.optDouble("shadows",0.0).toFloat(),
+                whites=q.optDouble("whites",0.0).toFloat(),
+                blacks=q.optDouble("blacks",0.0).toFloat(),
+                saturation=q.optDouble("saturation",0.0).toFloat(),
+                temperature=q.optDouble("temperature",0.0).toFloat(),
+                tint=q.optDouble("tint",0.0).toFloat(),
+                lutUri=q.optString("lutUri").takeIf { it.isNotBlank() }?.let(Uri::parse)
+            ) } ?: BqColorGrade()
+            val effects=buildList {
+                val a=v.optJSONArray("effects") ?: JSONArray()
+                for(i in 0 until a.length()) {
+                    val e=a.optJSONObject(i) ?: continue
+                    val params=linkedMapOf<String,BqFloatParameter>()
+                    e.optJSONObject("parameters")?.let { ps ->
+                        ps.keys().forEach { name ->
+                            ps.optJSONObject(name)?.let { p ->
+                                val keys=buildList {
+                                    val ka=p.optJSONArray("keyframes") ?: JSONArray()
+                                    for(j in 0 until ka.length()) {
+                                        val key=ka.optJSONObject(j) ?: continue
+                                        add(BqKeyframe(
+                                            key.optLong("time"),
+                                            key.optDouble("value").toFloat(),
+                                            runCatching { BqInterpolation.valueOf(key.optString("interpolation")) }.getOrDefault(BqInterpolation.LINEAR)
+                                        ))
+                                    }
+                                }
+                                params[name]=BqFloatParameter(p.optDouble("value",0.0).toFloat(),keys)
+                            }
+                        }
+                    }
+                    val kind=runCatching { BqEffectKind.valueOf(e.optString("kind")) }.getOrDefault(BqEffectKind.COLOR)
+                    add(BqEffectLayer(e.optString("id"),e.optString("name"),kind,e.optBoolean("enabled",true),params))
+                }
+            }
+            stacks[k]=BqAdjustmentStack(effects,color,v.optBoolean("enabled",true))
+        }}}}
         return BqAdvancedEditorState(tr,bl,pins,roto,blur,parts,presets,comps,px,ex,beats,vers,stacks)
     }
     private fun p(v:BqPoint)=JSONObject().put("x",v.x).put("y",v.y)
