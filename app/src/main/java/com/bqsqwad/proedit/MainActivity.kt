@@ -154,6 +154,12 @@ private fun BqProEditApp() {
         delay(700)
         store.save(project)
     }
+    LaunchedEffect(project.selectedClipId, project.clips) {
+        project.clips.firstOrNull { it.id == project.selectedClipId }?.let { clip ->
+            player.setPlaybackSpeed(clip.speed.coerceIn(0.25f, 4f))
+            player.setVideoEffects(engine.videoEffects(clip))
+        }
+    }
     LaunchedEffect(isPlaying) {
         while (isPlaying) {
             position = player.currentPosition
