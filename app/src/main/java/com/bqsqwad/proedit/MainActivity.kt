@@ -563,7 +563,38 @@ private fun ChromaPanel(selected: BqClip?, project: BqProject, commit: (BqProjec
         item { Text("Spill suppression %.2f".format(chroma.spillSuppression)) }
         item { Slider(chroma.spillSuppression, { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(chromaKey = chroma.copy(spillSuppression = v)) else it })) }, 0f..1f) }
         item { Text("Key color: #%08X".format(chroma.colorArgb)) }
-        item { Text("Chroma settings are persisted with the clip. Rendering/export integration remains isolated in the media-effect pipeline.", style = MaterialTheme.typography.labelSmall) }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("Masks")
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OutlinedButton(onClick = {
+                            val mask = com.bqsqwad.proedit.editor.BqMask(UUID.randomUUID().toString(), com.bqsqwad.proedit.editor.BqMaskShape.RECTANGLE, feather = 0.05f)
+                            commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(masks = it.masks + mask) else it }))
+                        }) { Text("Rectangle") }
+                        OutlinedButton(onClick = {
+                            val mask = com.bqsqwad.proedit.editor.BqMask(UUID.randomUUID().toString(), com.bqsqwad.proedit.editor.BqMaskShape.ELLIPSE, feather = 0.05f)
+                            commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(masks = it.masks + mask) else it }))
+                        }) { Text("Ellipse") }
+                    }
+                    selected.masks.forEach { mask ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(mask.shape.name, Modifier.weight(1f))
+                            TextButton(onClick = {
+                                commit(project.copy(clips = project.clips.map { c ->
+                                    if (c.id == selected.id) c.copy(masks = c.masks.map { if (it.id == mask.id) it.copy(invert = !it.invert) else it }) else c
+                                }))
+                            }) { Text(if (mask.invert) "Normal" else "Invert") }
+                            TextButton(onClick = {
+                                commit(project.copy(clips = project.clips.map { c -> if (c.id == selected.id) c.copy(masks = c.masks.filterNot { it.id == mask.id }) else c }))
+                            }) { Text("Remove") }
+                        }
+                    }
+                    Text("Mask layers: " + selected.masks.size, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+        item { Text("Chroma settings are persisted with the clip and masks are non-destructive.", style = MaterialTheme.typography.labelSmall) }
     }
 }
 
