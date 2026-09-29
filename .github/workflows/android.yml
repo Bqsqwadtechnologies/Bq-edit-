@@ -81,6 +81,8 @@ jobs:
         id: gradle_checks
         continue-on-error: true
         shell: bash
+        env:
+          RUN_TESTS: ${{ inputs.run_tests }}
         run: |
           set +e
           set -o pipefail
@@ -104,7 +106,7 @@ jobs:
             return 0
           }
 
-          if [ "false" != "true" ]; then
+          if [ "$RUN_TESTS" != "false" ]; then
             run_gradle "JVM unit tests" testDebugUnitTest.log gradle :app:testDebugUnitTest --stacktrace --continue --no-daemon
           fi
 
