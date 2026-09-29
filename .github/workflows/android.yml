@@ -82,44 +82,24 @@ jobs:
         id: gradle_checks
         continue-on-error: true
         shell: bash
-        env:
-          RUN_TESTS: ${{ inputs.run_tests }}
         run: |
           set +e
           set -o pipefail
           mkdir -p build/ci-diagnostics
           : > build/ci-diagnostics/gradle-failures.txt
-
-          run_gradle() {
-            label="$1"
-            logfile="$2"
-            shift 2
-            echo
-            echo "============================================================"
-            echo "START: $label"
-            echo "============================================================"
-            "$@" 2>&1 | tee "$logfile"
-            rc=$?
-            echo "END: $label (exit $rc)"
-            if [ "$rc" -ne 0 ]; then
-              echo "$label (exit $rc)" | tee -a build/ci-diagnostics/gradle-failures.txt
-            fi
-            return 0
-          }
-
-          if [ "$RUN_TESTS" != "false" ]; then
-            run_gradle "JVM unit tests" testDebugUnitTest.log gradle :app:testDebugUnitTest --stacktrace --no-daemon
+          if [ "${RUN_TESTS:-true}" != "false" ]; then
+            TASKS=":app:testDebugUnitTest :app:assembleDebug :app:assembleRelease :app:bundleRelease"
+          else
+            TASKS=":app:assembleDebug :app:assembleRelease :app:bundleRelease"
           fi
-
-          run_gradle "Debug APK" assembleDebug.log gradle :app:assembleDebug --stacktrace --no-daemon
-          run_gradle "Release APK" assembleRelease.log gradle :app:assembleRelease --stacktrace --no-daemon
-          run_gradle "Release AAB" bundleRelease.log gradle :app:bundleRelease --stacktrace --no-daemon
-
-          echo
-          echo "============================================================"
-          echo "ALL GRADLE CHECKS AND BUILDS HAVE BEEN EXECUTED"
-          echo "============================================================"
-          cat build/ci-diagnostics/gradle-failures.txt 2>/dev/null || true
+          echo "Running all requested Gradle tasks in one invocation: $TASKS"
+          gradle $TASKS --stacktrace --continue --no-daemon 2>&1 | tee build/ci-diagnostics/gradle-all.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            echo "Gradle build/checks failed (exit $rc)" | tee build/ci-diagnostics/gradle-failures.txt
+          fi
+          echo "All requested Gradle tasks have been executed."
+          exit 0
 
       - name: Verify real outputs
         id: outputs
