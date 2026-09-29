@@ -74,6 +74,25 @@ class BqMediaEngine(private val context: Context) {
 
     fun videoEffects(clip: BqClip): List<androidx.media3.common.Effect> = buildVideoEffects(clip)
 
+    /** Returns a deterministic render plan for advanced features that require a compositor/shader stage. */
+    fun advancedRenderPlan(project: BqProject, clip: BqClip): BqRenderPlan {
+        val fx = clip.fxLayers.filter { it.enabled }
+        val masks = clip.masks.filter { it.opacity > 0f }
+        val advanced = project.advanced
+        return BqRenderPlan(
+            transition = advanced.transitions[clip.id],
+            blend = advanced.blendLayers.filter { it.enabled && it.sourceClipId == clip.id },
+            cornerPin = advanced.cornerPins[clip.id]?.takeIf { it.enabled },
+            rotoscope = advanced.rotoscopes[clip.id]?.takeIf { it.enabled },
+            motionBlur = advanced.motionBlur[clip.id]?.takeIf { it.enabled },
+            particles = advanced.particleEmitters.filter { it.enabled },
+            powerPresets = advanced.powerPresets.filter { preset -> fx.any { it.kind == preset.kind } },
+            compositions = advanced.compositions.filter { it.enabled },
+            proxy = advanced.proxy.takeIf { it.enabled },
+            masks = masks
+        )
+    }
+
     fun editedMediaItem(clip: BqClip): EditedMediaItem {
         val mediaItem = mediaItem(clip)
         val videoEffects = buildVideoEffects(clip)
