@@ -104,7 +104,10 @@ class BqMediaEngine(private val context: Context) {
             powerPresets = advanced.powerPresets.filter { preset -> fx.any { it.kind == preset.kind } },
             compositions = advanced.compositions.filter { it.enabled },
             proxy = advanced.proxy.takeIf { it.enabled },
-            masks = masks
+            masks = masks,
+            trackedAnchors = fx.associateNotNull { layer ->
+                BqTrackingEvaluator.sample(layer.tracking, project.playheadMs)?.let { layer.id to it }
+            }
         )
     }
 
