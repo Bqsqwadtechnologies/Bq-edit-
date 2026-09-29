@@ -239,6 +239,8 @@ class BqMediaEngine(private val context: Context) {
         activeTransformer = null
     }
 
+    fun isExporting(): Boolean = activeTransformer != null
+
     companion object {
         private const val DEFAULT_IMAGE_DURATION_MS = 5_000L
     }
