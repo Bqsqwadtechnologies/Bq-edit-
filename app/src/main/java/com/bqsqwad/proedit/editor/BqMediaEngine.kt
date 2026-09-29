@@ -116,6 +116,21 @@ class BqMediaEngine(private val context: Context) {
         if (clip.transform.opacity < 0.999f) {
             effects += AlphaScale(clip.transform.opacity.coerceIn(0f, 1f))
         }
+        if (clip.colorGrade.saturation != 0f) {
+            effects += HslAdjustment.Builder().adjustSaturation(clip.colorGrade.saturation.coerceIn(-100f, 100f)).build()
+        }
+        if (clip.colorGrade.temperature != 0f) {
+            effects += HslAdjustment.Builder().adjustHue((clip.colorGrade.temperature * 0.5f).coerceIn(-180f, 180f)).build()
+        }
+        if (clip.colorGrade.tint != 0f) {
+            effects += HslAdjustment.Builder().adjustHue((clip.colorGrade.tint * 0.25f).coerceIn(-180f, 180f)).build()
+        }
+        if (clip.colorGrade.exposure != 0f) {
+            effects += Brightness(clip.colorGrade.exposure.coerceIn(-1f, 1f))
+        }
+        if (clip.colorGrade.contrast != 0f) {
+            effects += Contrast(clip.colorGrade.contrast.coerceIn(-1f, 1f))
+        }
 
         clip.effects.filter { it.enabled }.forEach { effect ->
             val amount = effect.parameters["amount"]?.value
