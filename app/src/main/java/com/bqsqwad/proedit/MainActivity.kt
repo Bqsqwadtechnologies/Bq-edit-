@@ -181,6 +181,14 @@ private fun BqProEditApp() {
                 Spacer(Modifier.width(4.dp))
                 OutlinedButton(onClick = { showNewProject = true }) { Text("New") }
                 Spacer(Modifier.width(4.dp))
+                OutlinedButton(onClick = {
+                    val copy = project.copy(id = UUID.randomUUID().toString(), name = project.name + " Copy", lastSavedAt = System.currentTimeMillis())
+                    history.commit(copy)
+                    project = history.current
+                    store.save(project)
+                    status = "Project duplicated"
+                }) { Text("Duplicate") }
+                Spacer(Modifier.width(4.dp))
                 OutlinedButton(onClick = { history.undo()?.let { project = it; store.save(it) } }, enabled = history.canUndo) { Text("Undo") }
                 Spacer(Modifier.width(4.dp))
                 OutlinedButton(onClick = { history.redo()?.let { project = it; store.save(it) } }, enabled = history.canRedo) { Text("Redo") }
