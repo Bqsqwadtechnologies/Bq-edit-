@@ -1,7 +1,6 @@
 package com.bqsqwad.proedit.editor
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class BqSubtitleSrtTest {
