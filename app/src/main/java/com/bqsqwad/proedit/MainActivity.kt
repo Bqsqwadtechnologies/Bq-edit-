@@ -440,9 +440,15 @@ private fun ColorGradePanel(selected: BqClip?, project: BqProject, commit: (BqPr
             val range = if (entry.first == "Saturation" || entry.first == "Temperature" || entry.first == "Tint") -100f..100f else -1f..1f
             Slider(value = entry.second.coerceIn(range.start, range.endInclusive), onValueChange = { v ->
                 val next = when (entry.first) {
-                    "Exposure" -> g.copy(exposure = v), "Contrast" -> g.copy(contrast = v), "Highlights" -> g.copy(highlights = v),
-                    "Shadows" -> g.copy(shadows = v), "Whites" -> g.copy(whites = v), "Blacks" -> g.copy(blacks = v),
-                    "Saturation" -> g.copy(saturation = v), "Temperature" -> g.copy(temperature = v), else -> g.copy(tint = v)
+                    "Exposure" -> g.copy(exposure = v)
+                    "Contrast" -> g.copy(contrast = v)
+                    "Highlights" -> g.copy(highlights = v)
+                    "Shadows" -> g.copy(shadows = v)
+                    "Whites" -> g.copy(whites = v)
+                    "Blacks" -> g.copy(blacks = v)
+                    "Saturation" -> g.copy(saturation = v)
+                    "Temperature" -> g.copy(temperature = v)
+                    else -> g.copy(tint = v)
                 }
                 commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(colorGrade = next) else it }))
             }, valueRange = range)
