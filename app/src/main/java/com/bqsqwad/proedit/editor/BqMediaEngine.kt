@@ -105,9 +105,9 @@ class BqMediaEngine(private val context: Context) {
             compositions = advanced.compositions.filter { it.enabled },
             proxy = advanced.proxy.takeIf { it.enabled },
             masks = masks,
-            trackedAnchors = fx.associateNotNull { layer ->
+            trackedAnchors = fx.mapNotNull { layer ->
                 BqTrackingEvaluator.sample(layer.tracking, project.playheadMs)?.let { layer.id to it }
-            },
+            }.toMap(),
             subjectTrack = fx.firstOrNull { it.tracking.subjectTrack != null }?.tracking?.subjectTrack,
             subjectTarget = fx.firstOrNull { it.tracking.target != null }?.tracking?.target
         )
