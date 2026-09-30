@@ -243,7 +243,7 @@ private fun BqProEditApp() {
             Row(Modifier.weight(1f).fillMaxWidth()) {
                 Column(Modifier.weight(1.7f).fillMaxSize()) {
                     Box(Modifier.weight(1f).fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-                        AndroidView(factory = { PlayerView(it).apply { player = player; useController = false } }, modifier = Modifier.fillMaxSize())
+                        AndroidView(factory = { PlayerView(it).apply { this.player = player; useController = false } }, modifier = Modifier.fillMaxSize())
                         if (project.clips.none { it.mediaType == BqMediaType.VIDEO }) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Image(painterResource(com.bqsqwad.proedit.R.drawable.bq_pro_edit_logo), null, Modifier.width(72.dp).height(72.dp))
