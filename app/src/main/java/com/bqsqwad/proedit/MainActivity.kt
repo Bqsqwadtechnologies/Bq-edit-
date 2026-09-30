@@ -399,16 +399,16 @@ private fun Inspector(selected: BqClip?, project: BqProject, commit: (BqProject)
     LazyColumn(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item { Text(selected.name, style = MaterialTheme.typography.titleMedium) }
         item { Text("Speed ${selected.speed}×") }
-        item { Slider(value = selected.speed, onValueChange = { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(speed = v) else it })) }, .25f..4f) }
+        item { Slider(value = selected.speed, onValueChange = { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(speed = v) else it })) }, valueRange = .25f..4f) }
         item { Text("Scale ${selected.scale}") }
-        item { Slider(value = selected.scale, onValueChange = { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(scale = v) else it })) }, .25f..3f) }
+        item { Slider(value = selected.scale, onValueChange = { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(scale = v) else it })) }, valueRange = .25f..3f) }
         item { Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { OutlinedButton(onClick = { commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(rotationDegrees = it.rotationDegrees + 90f) else it })) }) { Text("Rotate +90°") }; OutlinedButton(onClick = { commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(rotationDegrees = 0f) else it })) }) { Text("Reset") } } }
         item { Text("Position X ${selected.x}") }
-        item { Slider(value = selected.x, onValueChange = { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(x = v) else it })) }, -1f..1f) }
+        item { Slider(value = selected.x, onValueChange = { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(x = v) else it })) }, valueRange = -1f..1f) }
         item { Text("Position Y ${selected.y}") }
-        item { Slider(value = selected.y, onValueChange = { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(y = v) else it })) }, -1f..1f) }
+        item { Slider(value = selected.y, onValueChange = { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(y = v) else it })) }, valueRange = -1f..1f) }
         item { Text("Volume ${selected.volume}") }
-        item { Slider(value = selected.volume, onValueChange = { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(volume = v) else it })) }, 0f..2f) }
+        item { Slider(value = selected.volume, onValueChange = { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(volume = v) else it })) }, valueRange = 0f..2f) }
         item { Text("Audio track", style = MaterialTheme.typography.titleSmall) }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -421,9 +421,9 @@ private fun Inspector(selected: BqClip?, project: BqProject, commit: (BqProject)
             }
         }
         item { Text("Fade in: ${selected.audio.fadeInMs / 1000f}s") }
-        item { Slider(value = selected.audio.fadeInMs.toFloat(), onValueChange = { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(audio = it.audio.copy(fadeInMs = v.toLong())) else it })) }, 0f..10_000f) }
+        item { Slider(value = selected.audio.fadeInMs.toFloat(), onValueChange = { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(audio = it.audio.copy(fadeInMs = v.toLong())) else it })) }, valueRange = 0f..10_000f) }
         item { Text("Fade out: ${selected.audio.fadeOutMs / 1000f}s") }
-        item { Slider(value = selected.audio.fadeOutMs.toFloat(), onValueChange = { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(audio = it.audio.copy(fadeOutMs = v.toLong())) else it })) }, 0f..10_000f) }
+        item { Slider(value = selected.audio.fadeOutMs.toFloat(), onValueChange = { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(audio = it.audio.copy(fadeOutMs = v.toLong())) else it })) }, valueRange = 0f..10_000f) }
         item { Text("Non-destructive: source media is never modified.", style = MaterialTheme.typography.labelSmall) }
     }
 }
@@ -438,14 +438,14 @@ private fun ColorGradePanel(selected: BqClip?, project: BqProject, commit: (BqPr
         items(rows) { entry ->
             Text("${entry.first}: %.2f".format(entry.second), style = MaterialTheme.typography.labelSmall)
             val range = if (entry.first == "Saturation" || entry.first == "Temperature" || entry.first == "Tint") -100f..100f else -1f..1f
-            Slider(entry.second.coerceIn(range.start, range.endInclusive), { v ->
+            Slider(value = entry.second.coerceIn(range.start, range.endInclusive), onValueChange = { v ->
                 val next = when (entry.first) {
                     "Exposure" -> g.copy(exposure = v), "Contrast" -> g.copy(contrast = v), "Highlights" -> g.copy(highlights = v),
                     "Shadows" -> g.copy(shadows = v), "Whites" -> g.copy(whites = v), "Blacks" -> g.copy(blacks = v),
                     "Saturation" -> g.copy(saturation = v), "Temperature" -> g.copy(temperature = v), else -> g.copy(tint = v)
                 }
                 commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(colorGrade = next) else it }))
-            }, range)
+            }, valueRange = range)
         }
         item { OutlinedButton(onClick = { commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(colorGrade = BqColorGrade()) else it })) }) { Text("Reset Grade") } }
     }
@@ -610,11 +610,11 @@ private fun ChromaPanel(selected: BqClip?, project: BqProject, commit: (BqProjec
             }) { Text(if (chroma.enabled) "Disable chroma key" else "Enable chroma key") }
         }
         item { Text("Similarity %.2f".format(chroma.similarity)) }
-        item { Slider(value = chroma.similarity, onValueChange = { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(chromaKey = chroma.copy(similarity = v)) else it })) }, 0f..1f) }
+        item { Slider(value = chroma.similarity, onValueChange = { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(chromaKey = chroma.copy(similarity = v)) else it })) }, valueRange = 0f..1f) }
         item { Text("Softness %.2f".format(chroma.softness)) }
-        item { Slider(value = chroma.softness, onValueChange = { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(chromaKey = chroma.copy(softness = v)) else it })) }, 0f..1f) }
+        item { Slider(value = chroma.softness, onValueChange = { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(chromaKey = chroma.copy(softness = v)) else it })) }, valueRange = 0f..1f) }
         item { Text("Spill suppression %.2f".format(chroma.spillSuppression)) }
-        item { Slider(value = chroma.spillSuppression, onValueChange = { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(chromaKey = chroma.copy(spillSuppression = v)) else it })) }, 0f..1f) }
+        item { Slider(value = chroma.spillSuppression, onValueChange = { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(chromaKey = chroma.copy(spillSuppression = v)) else it })) }, valueRange = 0f..1f) }
         item { Text("Key color: #%08X".format(chroma.colorArgb)) }
         item {
             Card(Modifier.fillMaxWidth()) {
@@ -686,7 +686,7 @@ private fun AdvancedPanel(project: BqProject, commit: (BqProject) -> Unit) {
                         Text("Duration: " + current.durationMs + " ms", style = MaterialTheme.typography.labelSmall)
                         Slider(value = current.durationMs.toFloat(), onValueChange = { v ->
                             commit(project.copy(advanced = a.copy(transitions = a.transitions + (id to current.copy(durationMs = v.toLong().coerceIn(0L, 5000L))))))
-                        }, 0f..5000f)
+                        }, valueRange = 0f..5000f)
                     }
                     Text("Compositor: " + a.cornerPins.size + " pins · " + a.rotoscopes.size + " rotoscopes · " + a.blendLayers.size + " blend layers · " + a.particleEmitters.size + " particle emitters", style = MaterialTheme.typography.labelSmall)
                 }
