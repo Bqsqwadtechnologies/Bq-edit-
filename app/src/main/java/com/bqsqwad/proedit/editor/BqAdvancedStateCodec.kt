@@ -113,7 +113,7 @@ object BqAdvancedStateCodec {
                 }
             }
             stacks[k]=BqAdjustmentStack(effects,color,v.optBoolean("enabled",true))
-        }}}}
+        }}}
         return BqAdvancedEditorState(tr,bl,pins,roto,blur,parts,presets,comps,px,ex,beats,vers,stacks)
     }
     private fun p(v:BqPoint)=JSONObject().put("x",v.x).put("y",v.y)
