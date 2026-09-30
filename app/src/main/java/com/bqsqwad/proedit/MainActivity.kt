@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -135,9 +134,6 @@ private fun BqProEditApp() {
     var exportConfig by remember { mutableStateOf(BqExportConfig()) }
     var showGuide by remember { mutableStateOf(!context.getSharedPreferences("bq_pro_edit_onboarding", 0).getBoolean("seen", false)) }
     var guideFeature by remember { mutableStateOf<BqGuideFeature?>(null) }
-    val srtImport = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) runCatching { context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: "" }.onSuccess { text -> val caps = BqSubtitleSrt.import(text); if (caps.isEmpty()) status = "No valid SRT captions found" else { commit(project.copy(captions = caps)); status = "Imported ${caps.size} caption(s)" } }.onFailure { status = "SRT import failed" } }
-    val srtExport = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/x-subrip")) { uri -> if (uri != null) runCatching { context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(BqSubtitleSrt.export(project.captions)) } ?: error("Unable to write SRT") }.onSuccess { status = "SRT exported" }.onFailure { status = "SRT export failed" } }
-
     fun commit(next: BqProject) {
         val errors = BqProjectValidator.validate(next)
         if (errors.isNotEmpty()) { status = errors.first(); return }
@@ -145,6 +141,9 @@ private fun BqProEditApp() {
         project = history.current
         store.save(project)
     }
+
+    val srtImport = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) runCatching { context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: "" }.onSuccess { text -> val caps = BqSubtitleSrt.import(text); if (caps.isEmpty()) status = "No valid SRT captions found" else { commit(project.copy(captions = caps)); status = "Imported ${caps.size} caption(s)" } }.onFailure { status = "SRT import failed" } }
+    val srtExport = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/x-subrip")) { uri -> if (uri != null) runCatching { context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(BqSubtitleSrt.export(project.captions)) } ?: error("Unable to write SRT") }.onSuccess { status = "SRT exported" }.onFailure { status = "SRT export failed" } }
 
     fun selectClip(clip: BqClip) {
         val selectedProject = project.copy(selectedClipId = clip.id)
@@ -244,7 +243,7 @@ private fun BqProEditApp() {
             Row(Modifier.weight(1f).fillMaxWidth()) {
                 Column(Modifier.weight(1.7f).fillMaxSize()) {
                     Box(Modifier.weight(1f).fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-                        AndroidView(Modifier.fillMaxSize(), factory = { PlayerView(it).apply { player = player; useController = false } })
+                        AndroidView(factory = { PlayerView(it).apply { player = player; useController = false } }, modifier = Modifier.fillMaxSize())
                         if (project.clips.none { it.mediaType == BqMediaType.VIDEO }) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Image(painterResource(com.bqsqwad.proedit.R.drawable.bq_pro_edit_logo), null, Modifier.width(72.dp).height(72.dp))
@@ -267,7 +266,7 @@ private fun BqProEditApp() {
                         }, enabled = project.clips.any { it.mediaType == BqMediaType.VIDEO }) { Text("Frame") }
                         Spacer(Modifier.width(6.dp))
                         Text("${position / 1000}s / ${duration / 1000}s")
-                        Slider(value = position.coerceIn(0L, duration).toFloat(), onValueChange = { position = it.toLong(); player.seekTo(position) }, valueRange = 0f..duration.toFloat(), Modifier.weight(1f).padding(horizontal = 8.dp))
+                        Slider(value = position.coerceIn(0L, duration).toFloat(), onValueChange = { position = it.toLong(); player.seekTo(position) }, valueRange = 0f..duration.toFloat(), modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
                     }
                     HorizontalDivider()
                     Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()).padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -287,7 +286,7 @@ private fun BqProEditApp() {
                         }, enabled = project.clips.any { it.mediaType == BqMediaType.VIDEO } && !exportBusy) { Text(if (exportBusy) "Exporting…" else "Export MP4") }
                         if (exportBusy) OutlinedButton(onClick = { engine.cancelExport(); exportBusy = false; status = "Export cancelled" }) { Text("Cancel") }
                     }
-                    Text("Timeline · ${project.clips.size} clips", style = MaterialTheme.typography.titleMedium, Modifier.padding(vertical = 4.dp))
+                    Text("Timeline · ${project.clips.size} clips", modifier = Modifier.padding(vertical = 4.dp), style = MaterialTheme.typography.titleMedium)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                         items(project.clips, key = { it.id }) { clip ->
                             Card(onClick = { selectClip(clip) }) {
@@ -349,7 +348,7 @@ private fun BqProEditApp() {
                     }
                 }
             }
-            status?.let { Text(it, color = MaterialTheme.colorScheme.primary, Modifier.padding(top = 5.dp)) }
+            status?.let { Text(it, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 5.dp)) }
         }
     }
 
