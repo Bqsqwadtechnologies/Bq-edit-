@@ -48,7 +48,27 @@ jobs:
         run: |
           test -n "$BQ_RELEASE_KEYSTORE_BASE64"
           mkdir -p signing
-          printf '%s' "$BQ_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$BQ_RELEASE_STORE_FILE"
+          python3 - "$BQ_RELEASE_STORE_FILE" <<'PY'
+          import base64
+          import binascii
+          import os
+          import sys
+
+          value = os.environ["BQ_RELEASE_KEYSTORE_BASE64"]
+          value = "".join(value.split())
+          value += "=" * (-len(value) % 4)
+
+          try:
+              data = base64.b64decode(value, validate=True)
+          except (binascii.Error, ValueError) as exc:
+              raise SystemExit(f"Invalid BQ_RELEASE_KEYSTORE_BASE64 secret: {exc}")
+
+          if not data:
+              raise SystemExit("Decoded keystore is empty")
+
+          with open(sys.argv[1], "wb") as f:
+              f.write(data)
+          PY
           test -s "$BQ_RELEASE_STORE_FILE"
           chmod 600 "$BQ_RELEASE_STORE_FILE"
 
@@ -58,6 +78,7 @@ jobs:
           test -n "$BQ_RELEASE_KEY_ALIAS"
           test -n "$BQ_RELEASE_KEY_PASSWORD"
           test -f "$BQ_RELEASE_STORE_FILE"
+          keytool -list             -keystore "$BQ_RELEASE_STORE_FILE"             -storepass "$BQ_RELEASE_STORE_PASSWORD"             -alias "$BQ_RELEASE_KEY_ALIAS" >/dev/null
 
       - name: Build signed release APK and AAB
         run: gradle :app:assembleRelease :app:bundleRelease --stacktrace --no-daemon
