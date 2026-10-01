@@ -1,3 +1,5 @@
+import com.android.build.api.dsl.ApplicationExtension
+import org.gradle.kotlin.dsl.configure
 
 val releaseStoreFile = System.getenv("BQ_RELEASE_STORE_FILE")
 val releaseStorePassword = System.getenv("BQ_RELEASE_STORE_PASSWORD")
@@ -16,7 +18,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-android {
+extensions.configure<ApplicationExtension> {
     namespace = "com.bqsqwad.proedit"
     compileSdk = 36
 
@@ -34,9 +36,13 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+    }
 
-    testOptions { unitTests.isReturnDefaultValues = true }
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 
     signingConfigs {
         create("release") {
@@ -60,7 +66,9 @@ android {
         }
     }
 
-    packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+    packaging {
+        resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+    }
 }
 
 dependencies {
