@@ -9,7 +9,7 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-24.04
-    timeout-minutes: 7
+    timeout-minutes: 10
     env:
       BQ_RELEASE_STORE_FILE: ${{ github.workspace }}/signing/bq-pro-edit-release.jks
       BQ_RELEASE_STORE_PASSWORD: ${{ secrets.BQ_RELEASE_STORE_PASSWORD }}
@@ -50,7 +50,6 @@ jobs:
           set -euo pipefail
           test -n "$BQ_RELEASE_KEYSTORE_BASE64"
           mkdir -p "$(dirname "$BQ_RELEASE_STORE_FILE")"
-
           python3 - "$BQ_RELEASE_STORE_FILE" <<'PY'
           import base64
           import binascii
@@ -59,19 +58,15 @@ jobs:
 
           value = "".join(os.environ["BQ_RELEASE_KEYSTORE_BASE64"].split())
           value += "=" * (-len(value) % 4)
-
           try:
               data = base64.b64decode(value, validate=True)
           except (binascii.Error, ValueError) as exc:
-              raise SystemExit(f"Invalid BQ_RELEASE_KEYSTORE_BASE64 secret: {exc}")
-
+              raise SystemExit(f"Invalid keystore Base64: {exc}")
           if not data:
               raise SystemExit("Decoded keystore is empty")
-
           with open(sys.argv[1], "wb") as f:
               f.write(data)
           PY
-
           test -s "$BQ_RELEASE_STORE_FILE"
           chmod 600 "$BQ_RELEASE_STORE_FILE"
 
@@ -82,16 +77,20 @@ jobs:
           test -n "$BQ_RELEASE_KEY_ALIAS"
           test -n "$BQ_RELEASE_KEY_PASSWORD"
           test -f "$BQ_RELEASE_STORE_FILE"
-          keytool -list             -keystore "$BQ_RELEASE_STORE_FILE"             -storepass "$BQ_RELEASE_STORE_PASSWORD"             -alias "$BQ_RELEASE_KEY_ALIAS" >/dev/null
+          if ! keytool -list             -keystore "$BQ_RELEASE_STORE_FILE"             -storepass "$BQ_RELEASE_STORE_PASSWORD"             -alias "$BQ_RELEASE_KEY_ALIAS" >/dev/null 2>&1; then
+            echo "The keystore file was restored, but its password or alias does not match."
+            echo "Expected alias: bq-pro-edit-release"
+            exit 1
+          fi
 
       - name: Build signed release APK and AAB
-        run: gradle :app:assembleRelease :app:bundleRelease --stacktrace --no-daemon
+        run: gradle :app:assembleRelease :app:bundleRelease --stacktrace --no-daemon --warning-mode=all
 
       - name: Verify signed release APK and AAB
         run: |
           set -euo pipefail
-          APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
-          AAB="$(find app/build/outputs/bundle/release -maxdepth 1 -name '*.aab' -print -quit)"
+          APK="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit)"
+          AAB="$(find app/build/outputs/bundle/release -maxdepth 1 -type f -name '*.aab' -print -quit)"
           test -n "$APK"
           test -n "$AAB"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
