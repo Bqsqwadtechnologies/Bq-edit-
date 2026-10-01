@@ -13,7 +13,7 @@ jobs:
     env:
       BQ_RELEASE_STORE_FILE: ${{ github.workspace }}/signing/bq-pro-edit-release.jks
       BQ_RELEASE_STORE_PASSWORD: ${{ secrets.BQ_RELEASE_STORE_PASSWORD }}
-      BQ_RELEASE_KEY_ALIAS: ${{ secrets.BQ_RELEASE_KEY_ALIAS }}
+      BQ_RELEASE_KEY_ALIAS: bq-pro-edit-release
       BQ_RELEASE_KEY_PASSWORD: ${{ secrets.BQ_RELEASE_KEY_PASSWORD }}
 
     steps:
@@ -74,14 +74,10 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$BQ_RELEASE_STORE_PASSWORD"
-          test -n "$BQ_RELEASE_KEY_ALIAS"
           test -n "$BQ_RELEASE_KEY_PASSWORD"
           test -f "$BQ_RELEASE_STORE_FILE"
-          if ! keytool -list             -keystore "$BQ_RELEASE_STORE_FILE"             -storepass "$BQ_RELEASE_STORE_PASSWORD"             -alias "$BQ_RELEASE_KEY_ALIAS" >/dev/null 2>&1; then
-            echo "The keystore file was restored, but its password or alias does not match."
-            echo "Expected alias: bq-pro-edit-release"
-            exit 1
-          fi
+          keytool -list             -keystore "$BQ_RELEASE_STORE_FILE"             -storepass "$BQ_RELEASE_STORE_PASSWORD"             -alias "$BQ_RELEASE_KEY_ALIAS" >/dev/null
+          echo "Release keystore and alias verified."
 
       - name: Build signed release APK and AAB
         run: gradle :app:assembleRelease :app:bundleRelease --stacktrace --no-daemon --warning-mode=all
