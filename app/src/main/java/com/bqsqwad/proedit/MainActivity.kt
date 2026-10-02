@@ -115,6 +115,27 @@ private fun BqProEditTheme(content: @Composable () -> Unit) {
     MaterialTheme(colorScheme = if (isSystemInDarkTheme()) BqDarkColors else BqLightColors, content = content)
 }
 
+@Composable
+private fun BqFeatureLogo(
+    title: String,
+    mark: String,
+    accent: Color,
+    modifier: Modifier = Modifier
+) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+        Box(contentAlignment = Alignment.BottomEnd) {
+            Image(painterResource(com.bqsqwad.proedit.R.drawable.bq_pro_edit_logo), "BQ Pro Edit", Modifier.width(38.dp).height(38.dp))
+            Surface(color = accent, shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp), tonalElevation = 2.dp) {
+                Text(mark, color = Color.White, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
+            }
+        }
+        Column {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text("BQ Pro Edit feature", style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
+
 @OptIn(UnstableApi::class)
 @Composable
 private fun BqProEditApp() {
@@ -221,7 +242,7 @@ private fun BqProEditApp() {
                     Image(painterResource(com.bqsqwad.proedit.R.drawable.bq_pro_edit_logo), "BQ Pro Edit", Modifier.width(42.dp).height(42.dp))
                     Column(Modifier.weight(1f).padding(start = 10.dp)) {
                         Text("BQ Pro Edit", style = MaterialTheme.typography.titleLarge)
-                        Text(${project.name} + "  ·  " + ${project.clips.size} + " clips", style = MaterialTheme.typography.labelSmall)
+                        Text(project.name + "  ·  " + project.clips.size + " clips", style = MaterialTheme.typography.labelSmall)
                     }
                     OutlinedButton(onClick = { showGuide = true }) { Text("Guide") }
                     Spacer(Modifier.width(4.dp))
@@ -267,7 +288,7 @@ private fun BqProEditApp() {
                                         status = if (bitmap != null) "Frame captured" else "Frame capture unavailable"
                                     }.onFailure { status = "Frame capture failed: " + (it.message ?: "unknown error") }
                                 }, enabled = project.clips.any { it.mediaType == BqMediaType.VIDEO }) { Text("Capture") }
-                                Text(${position / 1000} + "s / " + ${duration / 1000} + "s", style = MaterialTheme.typography.labelSmall)
+                                Text(position / 1000 + "s / " + duration / 1000 + "s", style = MaterialTheme.typography.labelSmall)
                                 Slider(value = position.coerceIn(0L, duration).toFloat(), onValueChange = { position = it.toLong(); player.seekTo(position) }, valueRange = 0f..duration.toFloat(), modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
                             }
                             Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()).padding(vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -292,7 +313,7 @@ private fun BqProEditApp() {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
                                     Text("Timeline", style = MaterialTheme.typography.titleMedium)
-                                    Text(${project.clips.size} + " clips  ·  select a clip to edit", style = MaterialTheme.typography.labelSmall)
+                                    Text(project.clips.size + " clips  ·  select a clip to edit", style = MaterialTheme.typography.labelSmall)
                                 }
                                 OutlinedButton(onClick = { picker.launch(arrayOf("video/*", "image/*", "audio/*")) }) { Text("+ Media") }
                             }
@@ -414,6 +435,7 @@ private fun BqProEditApp() {
 private fun Inspector(selected: BqClip?, project: BqProject, commit: (BqProject) -> Unit) {
     if (selected == null) { Text("Select a clip from the timeline", Modifier.padding(16.dp)); return }
     LazyColumn(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item { BqFeatureLogo("Inspector", "I", Color(0xFF1565C0)) }
         item { Text(selected.name, style = MaterialTheme.typography.titleMedium) }
         item { Text("Speed ${selected.speed}×") }
         item { Slider(value = selected.speed, onValueChange = { v -> commit(project.copy(clips = project.clips.map { if (it.id == selected.id) it.copy(speed = v) else it })) }, valueRange = .25f..4f) }
@@ -451,6 +473,7 @@ private fun ColorGradePanel(selected: BqClip?, project: BqProject, commit: (BqPr
     val g = selected.colorGrade
     val rows = listOf("Exposure" to g.exposure, "Contrast" to g.contrast, "Highlights" to g.highlights, "Shadows" to g.shadows, "Whites" to g.whites, "Blacks" to g.blacks, "Saturation" to g.saturation, "Temperature" to g.temperature, "Tint" to g.tint)
     LazyColumn(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        item { BqFeatureLogo("Color Grade", "C", Color(0xFFEF6C00)) }
         item { Text("Color Grade", style = MaterialTheme.typography.titleMedium) }
         items(rows) { entry ->
             Text("${entry.first}: %.2f".format(entry.second), style = MaterialTheme.typography.labelSmall)
@@ -478,6 +501,7 @@ private fun EffectsPanel(selected: BqClip?, project: BqProject, commit: (BqProje
     if (selected == null) { Text("Select a clip first", Modifier.padding(16.dp)); return }
     val kinds = BqEffectKind.entries
     LazyColumn(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        item { BqFeatureLogo("Effects", "E", Color(0xFFC62828)) }
         item { Text("Color / image effects", style = MaterialTheme.typography.titleMedium) }
         items(kinds) { kind ->
             OutlinedButton(onClick = {
@@ -540,6 +564,7 @@ private fun EffectsPanel(selected: BqClip?, project: BqProject, commit: (BqProje
 private fun SuperpowerPanel(selected: BqClip?, project: BqProject, commit: (BqProject) -> Unit) {
     if (selected == null) { Text("Select a clip first", Modifier.padding(16.dp)); return }
     LazyColumn(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        item { BqFeatureLogo("Superpower FX", "FX", Color(0xFFAD1457)) }
         item { Text("BQ Superpower FX", style = MaterialTheme.typography.titleMedium) }
         item { Text("Lock effects to a selected person and body area so the target remains explicit in project state.", style = MaterialTheme.typography.labelSmall) }
         items(BqSuperpowerFxCatalog.effects) { effect ->
@@ -581,6 +606,7 @@ private fun SuperpowerPanel(selected: BqClip?, project: BqProject, commit: (BqPr
 private fun KeyframesPanel(selected: BqClip?, project: BqProject, commit: (BqProject) -> Unit) {
     if (selected == null) { Text("Select a clip first", Modifier.padding(16.dp)); return }
     LazyColumn(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        item { BqFeatureLogo("Keyframes", "K", Color(0xFF2E7D32)) }
         item { Text("Effect keyframes", style = MaterialTheme.typography.titleMedium) }
         item { Text("Set an effect amount at the current playhead, then move the playhead and set another value.", style = MaterialTheme.typography.labelSmall) }
         items(selected.effects, key = { it.id }) { effect ->
@@ -626,6 +652,7 @@ private fun ChromaPanel(selected: BqClip?, project: BqProject, commit: (BqProjec
     if (selected == null) { Text("Select a clip first", Modifier.padding(16.dp)); return }
     val chroma = selected.chromaKey
     LazyColumn(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        item { BqFeatureLogo("Chroma & Masks", "CH", Color(0xFF00695C)) }
         item { Text("Chroma key / green screen", style = MaterialTheme.typography.titleMedium) }
         item {
             OutlinedButton(onClick = {
@@ -678,6 +705,7 @@ private fun ChromaPanel(selected: BqClip?, project: BqProject, commit: (BqProjec
 private fun AdvancedPanel(project: BqProject, commit: (BqProject) -> Unit) {
     val a = project.advanced
     LazyColumn(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item { BqFeatureLogo("Advanced", "A", Color(0xFF37474F)) }
         item { Text("Professional Advanced", style = MaterialTheme.typography.titleMedium) }
         item { Text("Advanced state is non-destructive and saved with the project.", style = MaterialTheme.typography.labelSmall) }
         item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(8.dp)) { Text("Proxy editing"); OutlinedButton(onClick = { commit(project.copy(advanced = a.copy(proxy = a.proxy.copy(enabled = !a.proxy.enabled)))) }) { Text(if (a.proxy.enabled) "Disable proxy" else "Enable proxy") } } } }
@@ -722,6 +750,7 @@ private fun AdvancedPanel(project: BqProject, commit: (BqProject) -> Unit) {
 private fun CaptionsPanel(project: BqProject, commit: (BqProject) -> Unit, importSrt: () -> Unit, exportSrt: () -> Unit) {
     var draft by remember { mutableStateOf("") }
     LazyColumn(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        item { BqFeatureLogo("Captions", "CC", Color(0xFF283593)) }
         item { Text("Captions", style = MaterialTheme.typography.titleMedium) }
         item { Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { OutlinedButton(onClick = importSrt) { Text("Import SRT") }; OutlinedButton(onClick = exportSrt, enabled = project.captions.isNotEmpty()) { Text("Export SRT") } } }
         item {
@@ -763,6 +792,7 @@ private fun CaptionsPanel(project: BqProject, commit: (BqProject) -> Unit, impor
 @Composable
 private fun MediaPanel(project: BqProject, onSelect: (BqClip) -> Unit, onImport: () -> Unit) {
     LazyColumn(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        item { BqFeatureLogo("Media Bin", "M", Color(0xFF4527A0)) }
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -805,20 +835,21 @@ private fun saveToGallery(context: android.content.Context, file: File) {
 private enum class BqGuideFeature(
     val title: String,
     val color: Color,
-    val how: String
+    val how: String,
+    val mark: String
 ) {
-    IMPORT("Import media", Color(0xFF1565C0), "Tap Import in the Media area, choose video, photo or audio, then select the clip in the timeline."),
-    TIMELINE("Timeline editing", Color(0xFF6A1B9A), "Select a clip, then use the editor controls to trim, split, duplicate, move and adjust timing. Undo and Redo restore earlier states."),
-    TRANSFORM("Transform & framing", Color(0xFF00838F), "Use Inspector to change scale, X/Y position, rotation, opacity and clip framing without changing the source file."),
-    SPEED("Speed & time", Color(0xFF2E7D32), "Use the Speed slider in Inspector. Keyframes can animate effect values over the playhead timeline."),
-    COLOR("Color grading", Color(0xFFEF6C00), "Open Color and adjust exposure, contrast, highlights, shadows, whites, blacks, saturation, temperature and tint."),
-    EFFECTS("Effects", Color(0xFFC62828), "Open Effects, add an effect, turn it on or off, change its amount and remove it. The stack is saved with the project."),
-    CHROMA("Chroma key & masks", Color(0xFF00695C), "Open Chroma, enable green-screen removal, tune similarity/softness/spill and add non-destructive masks."),
-    SUPERPOWER("Person-locked Superpower FX", Color(0xFFAD1457), "Open FX, add a power, choose the tracked person and body part, then use the timeline to control when the power is active."),
-    AUDIO("Audio", Color(0xFF4527A0), "Use Inspector audio controls for volume, mute, solo and fades. Imported audio can be kept as project media."),
-    CAPTIONS("Captions & SRT", Color(0xFF283593), "Open Captions, add text at the playhead, or import/export SRT. Captions remain editable in the project."),
-    ADVANCED("Professional tools", Color(0xFF37474F), "Open Advanced for proxy settings, motion blur, beat markers, export presets, transitions and the advanced compositor state."),
-    EXPORT("Export", Color(0xFF7B1FA2), "Choose FHD/HD/FHD60, validate the project, then Export MP4. Progress can be cancelled and completed video is saved to the gallery.")
+    IMPORT("Import media", Color(0xFF1565C0), "Tap Import in the Media area, choose video, photo or audio, then select the clip in the timeline."), "IM",
+    TIMELINE("Timeline editing", Color(0xFF6A1B9A), "Select a clip, then use the editor controls to trim, split, duplicate, move and adjust timing. Undo and Redo restore earlier states."), "TL",
+    TRANSFORM("Transform & framing", Color(0xFF00838F), "Use Inspector to change scale, X/Y position, rotation, opacity and clip framing without changing the source file."), "TR",
+    SPEED("Speed & time", Color(0xFF2E7D32), "Use the Speed slider in Inspector. Keyframes can animate effect values over the playhead timeline."), "SP",
+    COLOR("Color grading", Color(0xFFEF6C00), "Open Color and adjust exposure, contrast, highlights, shadows, whites, blacks, saturation, temperature and tint."), "CL",
+    EFFECTS("Effects", Color(0xFFC62828), "Open Effects, add an effect, turn it on or off, change its amount and remove it. The stack is saved with the project."), "FX",
+    CHROMA("Chroma key & masks", Color(0xFF00695C), "Open Chroma, enable green-screen removal, tune similarity/softness/spill and add non-destructive masks."), "CH",
+    SUPERPOWER("Person-locked Superpower FX", Color(0xFFAD1457), "Open FX, add a power, choose the tracked person and body part, then use the timeline to control when the power is active."), "PX",
+    AUDIO("Audio", Color(0xFF4527A0), "Use Inspector audio controls for volume, mute, solo and fades. Imported audio can be kept as project media."), "AU",
+    CAPTIONS("Captions & SRT", Color(0xFF283593), "Open Captions, add text at the playhead, or import/export SRT. Captions remain editable in the project."), "CC",
+    ADVANCED("Professional tools", Color(0xFF37474F), "Open Advanced for proxy settings, motion blur, beat markers, export presets, transitions and the advanced compositor state."), "AD",
+    EXPORT("Export", Color(0xFF7B1FA2), "Choose FHD/HD/FHD60, validate the project, "EX", then Export MP4. Progress can be cancelled and completed video is saved to the gallery.")
 }
 
 @Composable
@@ -836,7 +867,7 @@ private fun BqFeatureGuide(
             Column(Modifier.fillMaxSize().padding(14.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("BQ Pro Edit — How to use", style = MaterialTheme.typography.headlineSmall)
+                        BqFeatureLogo("How to use BQ Pro Edit", "?", Color(0xFF1565C0))
                         Text("Every feature has a quick explanation. Tap Show Me to spotlight it.", style = MaterialTheme.typography.bodySmall)
                     }
                     TextButton(onClick = onDismiss) { Text("Close") }
@@ -845,12 +876,7 @@ private fun BqFeatureGuide(
                     items(BqGuideFeature.entries) { feature ->
                         Card(Modifier.fillMaxWidth()) {
                             Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.width(8.dp).height(54.dp).background(feature.color))
-                                Spacer(Modifier.width(10.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text(feature.title, style = MaterialTheme.typography.titleSmall)
-                                    Text(feature.how, style = MaterialTheme.typography.bodySmall)
-                                }
+                                BqFeatureLogo(feature.title, feature.mark, feature.color, Modifier.weight(1f))
                                 Spacer(Modifier.width(6.dp))
                                 OutlinedButton(onClick = { onShow(feature) }) { Text("Show Me") }
                             }
@@ -876,6 +902,7 @@ private fun BqFeatureSpotlight(feature: BqGuideFeature, onDismiss: () -> Unit) {
                 )
             ) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    BqFeatureLogo(feature.title, feature.mark, feature.color)
                     Box(Modifier.fillMaxWidth().height(8.dp).background(feature.color))
                     Text(feature.title, style = MaterialTheme.typography.headlineSmall)
                     Text(feature.how, style = MaterialTheme.typography.bodyLarge)
