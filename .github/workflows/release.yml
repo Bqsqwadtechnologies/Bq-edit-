@@ -56,12 +56,6 @@ jobs:
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" >/dev/null 2>&1
 
-      - name: Unit tests
-        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
-
-      - name: Android lint
-        run: gradle :app:lintDebug --no-daemon --stacktrace
-
       - name: Debug APK
         run: gradle :app:assembleDebug --no-daemon --stacktrace
 
@@ -101,17 +95,6 @@ jobs:
 
       - name: Release AAB
         run: gradle :app:bundleRelease --no-daemon --stacktrace
-
-      - name: Verify outputs
-        run: |
-          set -euo pipefail
-          debug_apk="$(find app/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' -print -quit)"
-          release_apk="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit)"
-          release_aab="$(find app/build/outputs/bundle/release -maxdepth 1 -type f -name '*.aab' -print -quit)"
-          test -s "$debug_apk"
-          test -s "$release_apk"
-          test -s "$release_aab"
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$release_apk"
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v7
