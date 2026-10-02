@@ -1,15 +1,22 @@
 name: BQ Pro Edit Release
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      run_tests:
+        description: Run JVM unit tests
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: read
 
 jobs:
-  release:
+  build:
+    name: Audit and release
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 45
     env:
       BQ_RELEASE_STORE_FILE: ${{ github.workspace }}/signing/bq-pro-edit-release.jks
       BQ_RELEASE_STORE_PASSWORD: ${{ secrets.BQ_RELEASE_STORE_PASSWORD }}
@@ -17,11 +24,22 @@ jobs:
       BQ_RELEASE_KEY_PASSWORD: ${{ secrets.BQ_RELEASE_KEY_PASSWORD }}
 
     steps:
-      - name: Checkout main
+      - name: Checkout main only
         uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 1
+
+      - name: Verify project
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "main"
+          test -f settings.gradle.kts
+          test -f build.gradle.kts
+          test -f gradle.properties
+          test -f app/build.gradle.kts
+          test -f app/src/main/AndroidManifest.xml
+          echo "Commit: $(git rev-parse HEAD)"
 
       - name: Set up Java 17
         uses: actions/setup-java@v6
@@ -30,129 +48,159 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      - name: Set up Gradle
+      - name: Set up Gradle 9.8.0
         uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '9.8.0'
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
-        with:
-          packages: 'platform-tools'
 
       - name: Install Android SDK
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+        run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Restore release signing keystore
+      - name: Inspect Gradle tasks
+        id: inspect
+        continue-on-error: true
+        run: gradle :app:tasks --all --no-daemon --stacktrace --warning-mode=all
+
+      - name: Unit tests
+        id: tests
+        if: ${{ inputs.run_tests != false }}
+        continue-on-error: true
+        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace --warning-mode=all
+
+      - name: Android lint
+        id: lint
+        continue-on-error: true
+        run: gradle :app:lintDebug --no-daemon --stacktrace --warning-mode=all
+
+      - name: Debug APK
+        id: debug
+        continue-on-error: true
+        run: gradle :app:assembleDebug --no-daemon --stacktrace --warning-mode=all
+
+      - name: Restore signing keystore
+        id: signing
+        continue-on-error: true
         env:
           BQ_RELEASE_KEYSTORE_BASE64: ${{ secrets.BQ_RELEASE_KEYSTORE_BASE64 }}
         run: |
           set -euo pipefail
           test -n "$BQ_RELEASE_KEYSTORE_BASE64"
+          test -n "$BQ_RELEASE_STORE_PASSWORD"
+          test -n "$BQ_RELEASE_KEY_PASSWORD"
           mkdir -p "$(dirname "$BQ_RELEASE_STORE_FILE")"
           python3 - "$BQ_RELEASE_STORE_FILE" <<'PY'
-          import base64
-          import binascii
-          import os
-          import sys
-
+          import base64, binascii, os, sys
           value = "".join(os.environ["BQ_RELEASE_KEYSTORE_BASE64"].split())
           value += "=" * (-len(value) % 4)
           try:
               data = base64.b64decode(value, validate=True)
           except (binascii.Error, ValueError) as exc:
-              raise SystemExit(f"Invalid keystore Base64: {exc}")
+              raise SystemExit(f"Invalid keystore data: {exc}")
           if not data:
-              raise SystemExit("Decoded keystore is empty")
-          with open(sys.argv[1], "wb") as f:
-              f.write(data)
+              raise SystemExit("Keystore is empty")
+          open(sys.argv[1], "wb").write(data)
           PY
-          test -s "$BQ_RELEASE_STORE_FILE"
           chmod 600 "$BQ_RELEASE_STORE_FILE"
+          test -s "$BQ_RELEASE_STORE_FILE"
 
-      - name: Verify release signing configuration
+      - name: Detect signing alias
+        id: alias
+        if: ${{ steps.signing.outcome == 'success' }}
+        continue-on-error: true
         run: |
           set -euo pipefail
-          test -n "$BQ_RELEASE_STORE_PASSWORD"
-          test -n "$BQ_RELEASE_KEY_PASSWORD"
-          test -f "$BQ_RELEASE_STORE_FILE"
+          output="$(keytool -list -v -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" 2>&1)"
+          alias="$(printf '%s\n' "$output" | awk -F': ' '/Alias name:/ {print $2; exit}' | sed 's/[[:space:]]*$//')"
+          test -n "$alias"
+          keytool -list -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" -alias "$alias" >/dev/null
+          echo "BQ_RELEASE_KEY_ALIAS=$alias" >> "$GITHUB_ENV"
 
-          keytool_output="$(
-            LC_ALL=C keytool -list -v               -keystore "$BQ_RELEASE_STORE_FILE"               -storepass "$BQ_RELEASE_STORE_PASSWORD" 2>&1
-          )" || {
-            echo "::error::Unable to open the restored release keystore with the configured store password."
-            exit 1
-          }
+      - name: Release APK
+        id: release_apk
+        if: ${{ steps.alias.outcome == 'success' }}
+        continue-on-error: true
+        run: gradle :app:assembleRelease --no-daemon --stacktrace --warning-mode=all
 
-          aliases="$(
-            printf '%s
-' "$keytool_output" |
-              awk -F': ' '/^[[:space:]]*Alias name:[[:space:]]*/ {print $2}' |
-              sed '/^$/d'
-          )"
+      - name: Release AAB
+        id: release_aab
+        if: ${{ steps.alias.outcome == 'success' }}
+        continue-on-error: true
+        run: gradle :app:bundleRelease --no-daemon --stacktrace --warning-mode=all
 
-          if [ -z "$aliases" ]; then
-            aliases="$(
-              printf '%s
-' "$keytool_output" |
-                awk '
-                  /Your keystore contains [0-9]+ entr/ { entries=1; next }
-                  entries && NF {
-                    value=$1
-                    sub(/,$/, "", value)
-                    print value
-                    exit
-                  }
-                '
-            )"
-          fi
-
-          if [ -z "$aliases" ]; then
-            echo "::error::No signing alias could be read from the restored release keystore."
-            exit 1
-          fi
-
-          alias_count="$(printf '%s
-' "$aliases" | sed '/^$/d' | wc -l | tr -d ' ')"
-          if [ "$alias_count" -ne 1 ]; then
-            echo "::error::Expected exactly one signing alias in the release keystore, found $alias_count."
-            exit 1
-          fi
-
-          BQ_RELEASE_KEY_ALIAS="$(printf '%s
-' "$aliases" | sed -n '1p' | sed 's/[[:space:]]*$//')"
-          test -n "$BQ_RELEASE_KEY_ALIAS"
-
-          if ! LC_ALL=C keytool -list               -keystore "$BQ_RELEASE_STORE_FILE"               -storepass "$BQ_RELEASE_STORE_PASSWORD"               -alias "$BQ_RELEASE_KEY_ALIAS" >/dev/null 2>&1; then
-            echo "::error::The detected release signing alias could not be opened."
-            exit 1
-          fi
-
-          echo "BQ_RELEASE_KEY_ALIAS=$BQ_RELEASE_KEY_ALIAS" >> "$GITHUB_ENV"
-          echo "Release keystore and signing alias verified."
-
-      - name: Build signed release APK and AAB
-        run: gradle :app:assembleRelease :app:bundleRelease --stacktrace --no-daemon --warning-mode=all
-
-      - name: Verify signed release APK and AAB
+      - name: Verify outputs
+        id: outputs
+        if: ${{ always() }}
+        continue-on-error: true
         run: |
           set -euo pipefail
-          APK="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit)"
-          AAB="$(find app/build/outputs/bundle/release -maxdepth 1 -type f -name '*.aab' -print -quit)"
-          test -n "$APK"
-          test -n "$AAB"
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+          debug_apk="$(find app/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' -print -quit 2>/dev/null || true)"
+          release_apk="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit 2>/dev/null || true)"
+          release_aab="$(find app/build/outputs/bundle/release -maxdepth 1 -type f -name '*.aab' -print -quit 2>/dev/null || true)"
+          test -n "$debug_apk"
+          test -n "$release_apk"
+          test -n "$release_aab"
+          test -s "$debug_apk"
+          test -s "$release_apk"
+          test -s "$release_aab"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$release_apk"
+
+      - name: Upload APK
+        if: ${{ always() && hashFiles('app/build/outputs/apk/debug/*.apk') != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: bq-pro-edit-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
 
       - name: Upload release APK
-        uses: actions/upload-artifact@v5
+        if: ${{ always() && hashFiles('app/build/outputs/apk/release/*.apk') != '' }}
+        uses: actions/upload-artifact@v7
         with:
           name: bq-pro-edit-release-apk
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
 
       - name: Upload release AAB
-        uses: actions/upload-artifact@v5
+        if: ${{ always() && hashFiles('app/build/outputs/bundle/release/*.aab') != '' }}
+        uses: actions/upload-artifact@v7
         with:
           name: bq-pro-edit-release-aab
           path: app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
+
+      - name: Final result
+        if: ${{ always() }}
+        env:
+          INSPECT: ${{ steps.inspect.outcome }}
+          TESTS: ${{ steps.tests.outcome }}
+          LINT: ${{ steps.lint.outcome }}
+          DEBUG: ${{ steps.debug.outcome }}
+          SIGNING: ${{ steps.signing.outcome }}
+          ALIAS: ${{ steps.alias.outcome }}
+          RELEASE_APK: ${{ steps.release_apk.outcome }}
+          RELEASE_AAB: ${{ steps.release_aab.outcome }}
+          OUTPUTS: ${{ steps.outputs.outcome }}
+        run: |
+          echo "Inspect: $INSPECT"
+          echo "Tests: $TESTS"
+          echo "Lint: $LINT"
+          echo "Debug: $DEBUG"
+          echo "Signing: $SIGNING"
+          echo "Alias: $ALIAS"
+          echo "Release APK: $RELEASE_APK"
+          echo "Release AAB: $RELEASE_AAB"
+          echo "Outputs: $OUTPUTS"
+          test "$INSPECT" = success
+          test "$TESTS" = success
+          test "$LINT" = success
+          test "$DEBUG" = success
+          test "$SIGNING" = success
+          test "$ALIAS" = success
+          test "$RELEASE_APK" = success
+          test "$RELEASE_AAB" = success
+          test "$OUTPUTS" = success
