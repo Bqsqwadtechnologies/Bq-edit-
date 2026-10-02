@@ -15,9 +15,9 @@ class BqEditorCoreTest {
         val clip = BqClip("a", uri, "clip", startMs = 0, endMs = 10_000)
         val pair = BqTimelineOps.split(clip, 4_000)
         assertNotNull(pair)
-        assertEquals(4_000, pair!!.first.endMs)
-        assertEquals(4_000, pair.second.startMs)
-        assertEquals(10_000, pair.second.endMs)
+        assertEquals(4_000L, pair!!.first.endMs)
+        assertEquals(4_000L, pair.second.startMs)
+        assertEquals(10_000L, pair.second.endMs)
         assertTrue(pair.first.id != pair.second.id)
     }
 
@@ -31,8 +31,8 @@ class BqEditorCoreTest {
         val clip = BqClip("a", uri, "clip", 0, 10_000)
         val trimmed = BqTimelineOps.trim(clip, 2_000, 7_500)
         assertNotNull(trimmed)
-        assertEquals(2_000, trimmed!!.startMs)
-        assertEquals(7_500, trimmed.endMs)
+        assertEquals(2_000L, trimmed!!.startMs)
+        assertEquals(7_500L, trimmed.endMs)
     }
 
     @Test fun invalidTrimIsRejected() {
