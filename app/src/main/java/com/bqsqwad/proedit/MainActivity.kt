@@ -215,125 +215,126 @@ private fun BqProEditApp() {
     }
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(Modifier.fillMaxSize().padding(10.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Image(painterResource(com.bqsqwad.proedit.R.drawable.bq_pro_edit_logo), "BQ Pro Edit", Modifier.width(48.dp).height(48.dp))
-                Column(Modifier.weight(1f).padding(start = 8.dp)) {
-                    Text(project.name, style = MaterialTheme.typography.titleLarge)
-                    Text("BQ Pro Edit · BQ Sqwad Technologies", style = MaterialTheme.typography.labelSmall)
+        Column(Modifier.fillMaxSize().padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Card(Modifier.fillMaxWidth(), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Image(painterResource(com.bqsqwad.proedit.R.drawable.bq_pro_edit_logo), "BQ Pro Edit", Modifier.width(42.dp).height(42.dp))
+                    Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                        Text("BQ Pro Edit", style = MaterialTheme.typography.titleLarge)
+                        Text(\${project.name} + "  ·  " + \${project.clips.size} + " clips", style = MaterialTheme.typography.labelSmall)
+                    }
+                    OutlinedButton(onClick = { showGuide = true }) { Text("Guide") }
+                    Spacer(Modifier.width(4.dp))
+                    OutlinedButton(onClick = { showRename = true }) { Text("Rename") }
+                    Spacer(Modifier.width(4.dp))
+                    OutlinedButton(onClick = { showNewProject = true }) { Text("New") }
+                    Spacer(Modifier.width(4.dp))
+                    OutlinedButton(onClick = { history.undo()?.let { project = it; store.save(it) } }, enabled = history.canUndo) { Text("Undo") }
+                    Spacer(Modifier.width(4.dp))
+                    OutlinedButton(onClick = { history.redo()?.let { project = it; store.save(it) } }, enabled = history.canRedo) { Text("Redo") }
                 }
-                OutlinedButton(onClick = { showGuide = true }) { Text("Guide") }
-                Spacer(Modifier.width(4.dp))
-                OutlinedButton(onClick = { showRename = true }) { Text("Rename") }
-                Spacer(Modifier.width(4.dp))
-                OutlinedButton(onClick = { showNewProject = true }) { Text("New") }
-                Spacer(Modifier.width(4.dp))
-                OutlinedButton(onClick = {
-                    val copy = project.copy(id = UUID.randomUUID().toString(), name = project.name + " Copy", lastSavedAt = System.currentTimeMillis())
-                    history.commit(copy)
-                    project = history.current
-                    store.save(project)
-                    status = "Project duplicated"
-                }) { Text("Duplicate") }
-                Spacer(Modifier.width(4.dp))
-                OutlinedButton(onClick = { history.undo()?.let { project = it; store.save(it) } }, enabled = history.canUndo) { Text("Undo") }
-                Spacer(Modifier.width(4.dp))
-                OutlinedButton(onClick = { history.redo()?.let { project = it; store.save(it) } }, enabled = history.canRedo) { Text("Redo") }
             }
-
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.weight(1f).fillMaxWidth()) {
-                Column(Modifier.weight(1.7f).fillMaxSize()) {
-                    Box(Modifier.weight(1f).fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-                        AndroidView(factory = { PlayerView(it).apply { this.player = player; useController = false } }, modifier = Modifier.fillMaxSize())
-                        if (project.clips.none { it.mediaType == BqMediaType.VIDEO }) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Image(painterResource(com.bqsqwad.proedit.R.drawable.bq_pro_edit_logo), null, Modifier.width(72.dp).height(72.dp))
-                                Text("Import video to start editing")
+            Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.weight(1.65f).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Card(Modifier.weight(1f).fillMaxWidth(), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = Color.Black)) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            AndroidView(factory = { PlayerView(it).apply { this.player = player; useController = false } }, modifier = Modifier.fillMaxSize())
+                            if (project.clips.none { it.mediaType == BqMediaType.VIDEO }) {
+                                Card(Modifier.fillMaxWidth(0.78f), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f))) {
+                                    Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Image(painterResource(com.bqsqwad.proedit.R.drawable.bq_pro_edit_logo), null, Modifier.width(64.dp).height(64.dp))
+                                        Text("Start a new edit", style = MaterialTheme.typography.headlineSmall)
+                                        Text("Bring in your video, photos or audio and build your timeline.", style = MaterialTheme.typography.bodyMedium)
+                                        Button(onClick = { picker.launch(arrayOf("video/*", "image/*", "audio/*")) }) { Text("Import Media") }
+                                    }
+                                }
                             }
                         }
                     }
-                    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Button(onClick = { if (player.isPlaying) player.pause() else player.play() }, enabled = project.clips.any { it.mediaType == BqMediaType.VIDEO }) { Text(if (isPlaying) "Pause" else "Play") }
-                        OutlinedButton(onClick = {
-                            val clip = project.clips.firstOrNull { it.id == project.selectedClipId }
-                            if (clip != null) runCatching {
-                                val retriever = MediaMetadataRetriever()
-                                retriever.setDataSource(context, clip.uri)
-                                val bitmap = retriever.getFrameAtTime((position * 1000L).coerceAtLeast(0L), MediaMetadataRetriever.OPTION_CLOSEST)
-                                retriever.release()
-                                if (bitmap != null) saveFrameToGallery(context, bitmap)
-                                status = if (bitmap != null) "Frame captured" else "Frame capture unavailable"
-                            }.onFailure { status = "Frame capture failed: " + (it.message ?: "unknown error") }
-                        }, enabled = project.clips.any { it.mediaType == BqMediaType.VIDEO }) { Text("Frame") }
-                        Spacer(Modifier.width(6.dp))
-                        Text("${position / 1000}s / ${duration / 1000}s")
-                        Slider(value = position.coerceIn(0L, duration).toFloat(), onValueChange = { position = it.toLong(); player.seekTo(position) }, valueRange = 0f..duration.toFloat(), modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
-                    }
-                    HorizontalDivider()
-                    Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()).padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("Export:", style = MaterialTheme.typography.labelSmall)
-                            OutlinedButton(onClick = { exportConfig = BqExportConfig(1920,1080,30,12_000_000) }, enabled = !exportBusy) { Text("FHD 30") }
-                            OutlinedButton(onClick = { exportConfig = BqExportConfig(1280,720,30,8_000_000) }, enabled = !exportBusy) { Text("HD 30") }
-                            OutlinedButton(onClick = { exportConfig = BqExportConfig(1920,1080,60,20_000_000) }, enabled = !exportBusy) { Text("FHD 60") }
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Button(onClick = { if (player.isPlaying) player.pause() else player.play() }, enabled = project.clips.any { it.mediaType == BqMediaType.VIDEO }) { Text(if (isPlaying) "Pause" else "Play") }
+                                Spacer(Modifier.width(5.dp))
+                                OutlinedButton(onClick = {
+                                    val clip = project.clips.firstOrNull { it.id == project.selectedClipId }
+                                    if (clip != null) runCatching {
+                                        val retriever = MediaMetadataRetriever()
+                                        retriever.setDataSource(context, clip.uri)
+                                        val bitmap = retriever.getFrameAtTime((position * 1000L).coerceAtLeast(0L), MediaMetadataRetriever.OPTION_CLOSEST)
+                                        retriever.release()
+                                        if (bitmap != null) saveFrameToGallery(context, bitmap)
+                                        status = if (bitmap != null) "Frame captured" else "Frame capture unavailable"
+                                    }.onFailure { status = "Frame capture failed: " + (it.message ?: "unknown error") }
+                                }, enabled = project.clips.any { it.mediaType == BqMediaType.VIDEO }) { Text("Capture") }
+                                Text(\${position / 1000} + "s / " + \${duration / 1000} + "s", style = MaterialTheme.typography.labelSmall)
+                                Slider(value = position.coerceIn(0L, duration).toFloat(), onValueChange = { position = it.toLong(); player.seekTo(position) }, valueRange = 0f..duration.toFloat(), modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
+                            }
+                            Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()).padding(vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("Export", style = MaterialTheme.typography.labelMedium)
+                                OutlinedButton(onClick = { exportConfig = BqExportConfig(1920,1080,30,12_000_000) }, enabled = !exportBusy) { Text("FHD 30") }
+                                OutlinedButton(onClick = { exportConfig = BqExportConfig(1280,720,30,8_000_000) }, enabled = !exportBusy) { Text("HD 30") }
+                                OutlinedButton(onClick = { exportConfig = BqExportConfig(1920,1080,60,20_000_000) }, enabled = !exportBusy) { Text("FHD 60") }
+                                Button(onClick = {
+                                    if (exportBusy) return@Button
+                                    val errors = BqProjectValidator.validate(project)
+                                    if (errors.isNotEmpty()) { status = errors.first(); return@Button }
+                                    exportBusy = true
+                                    status = "Exporting " + exportConfig.width + "×" + exportConfig.height + " @ " + exportConfig.fps + "fps…"
+                                    engine.exportProject(project, exportConfig, onStarted = {}, onProgress = {}, onCompleted = { file -> saveToGallery(context, file); exportBusy = false; status = "Export complete" }, onError = { exportBusy = false; status = "Export failed: " + (it.message ?: "unknown error") })
+                                }, enabled = project.clips.any { it.mediaType == BqMediaType.VIDEO } && !exportBusy) { Text(if (exportBusy) "Exporting…" else "Export MP4") }
+                                if (exportBusy) OutlinedButton(onClick = { engine.cancelExport(); exportBusy = false; status = "Export cancelled" }) { Text("Cancel") }
+                            }
                         }
-                        Button(onClick = {
-                            if (exportBusy) return@Button
-                            val errors = BqProjectValidator.validate(project)
-                            if (errors.isNotEmpty()) { status = errors.first(); return@Button }
-                            exportBusy = true
-                            status = "Exporting " + exportConfig.width + "×" + exportConfig.height + " @ " + exportConfig.fps + "fps…"
-                            engine.exportProject(project, exportConfig, onStarted = {}, onProgress = {}, onCompleted = { file -> saveToGallery(context, file); exportBusy = false; status = "Export complete" }, onError = { exportBusy = false; status = "Export failed: " + (it.message ?: "unknown error") })
-                        }, enabled = project.clips.any { it.mediaType == BqMediaType.VIDEO } && !exportBusy) { Text(if (exportBusy) "Exporting…" else "Export MP4") }
-                        if (exportBusy) OutlinedButton(onClick = { engine.cancelExport(); exportBusy = false; status = "Export cancelled" }) { Text("Cancel") }
                     }
-                    Text("Timeline · ${project.clips.size} clips", modifier = Modifier.padding(vertical = 4.dp), style = MaterialTheme.typography.titleMedium)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                        items(project.clips, key = { it.id }) { clip ->
-                            Card(onClick = { selectClip(clip) }) {
-                                Column(Modifier.padding(9.dp).width(190.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                    Text(if (clip.id == project.selectedClipId) "● ${clip.name}" else clip.name, maxLines = 1)
-                                    Text("${clip.mediaType} · ${clip.speed}×", style = MaterialTheme.typography.labelSmall)
-                                    Text("${clip.startMs}–${clip.endMs ?: "end"} ms", style = MaterialTheme.typography.labelSmall)
-                                    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                                        TextButton(onClick = {
-                                            val pair = BqTimelineOps.split(clip, project.playheadMs)
-                                            if (pair == null) status = "Split needs a playhead inside the clip"
-                                            else {
-                                                val (left, right) = pair
-                                                commit(project.copy(clips = project.clips.flatMap { if (it.id == clip.id) listOf(left, right) else listOf(it) }, selectedClipId = right.id))
-                                                status = "Clip split at ${project.playheadMs} ms"
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(8.dp)) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("Timeline", style = MaterialTheme.typography.titleMedium)
+                                    Text(\${project.clips.size} + " clips  ·  select a clip to edit", style = MaterialTheme.typography.labelSmall)
+                                }
+                                OutlinedButton(onClick = { picker.launch(arrayOf("video/*", "image/*", "audio/*")) }) { Text("+ Media") }
+                            }
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
+                                items(project.clips, key = { it.id }) { clip ->
+                                    Card(onClick = { selectClip(clip) }, colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = if (clip.id == project.selectedClipId) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)) {
+                                        Column(Modifier.padding(9.dp).width(185.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                            Text(if (clip.id == project.selectedClipId) "● " + clip.name else clip.name, maxLines = 1)
+                                            Text(clip.mediaType.name + "  ·  " + clip.speed + "×", style = MaterialTheme.typography.labelSmall)
+                                            Text(clip.startMs.toString() + "–" + (clip.endMs?.toString() ?: "end") + " ms", style = MaterialTheme.typography.labelSmall)
+                                            Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                                                TextButton(onClick = {
+                                                    val pair = BqTimelineOps.split(clip, project.playheadMs)
+                                                    if (pair == null) status = "Split needs a playhead inside the clip"
+                                                    else { val (left, right) = pair; commit(project.copy(clips = project.clips.flatMap { if (it.id == clip.id) listOf(left, right) else listOf(it) }, selectedClipId = right.id)); status = "Clip split at " + project.playheadMs + " ms" }
+                                                }) { Text("Split") }
+                                                TextButton(onClick = {
+                                                    val endMs = clip.endMs
+                                                    if (endMs == null || project.playheadMs <= clip.startMs || project.playheadMs >= endMs) status = "Trim needs a playhead inside the clip"
+                                                    else { val trimmed = BqTimelineOps.trim(clip, clip.startMs, project.playheadMs); if (trimmed != null) { commit(project.copy(clips = project.clips.map { if (it.id == clip.id) trimmed else it })); status = "Trimmed to playhead" } }
+                                                }) { Text("Trim") }
+                                                TextButton(onClick = { val copy = BqTimelineOps.duplicate(clip); commit(project.copy(clips = project.clips + copy, selectedClipId = copy.id)); status = "Clip duplicated" }) { Text("Copy") }
+                                                TextButton(onClick = {
+                                                    if (project.clips.size <= 1) status = "Keep at least one clip in the project"
+                                                    else { commit(project.copy(clips = project.clips.filterNot { it.id == clip.id }, selectedClipId = project.clips.firstOrNull { it.id != clip.id }?.id)); status = "Clip deleted" }
+                                                }) { Text("Delete") }
                                             }
-                                        }) { Text("Split") }
-                                        TextButton(onClick = {
-                                            val end = clip.endMs
-                                            if (end == null || project.playheadMs <= clip.startMs || project.playheadMs >= end) status = "Trim needs a playhead inside the clip"
-                                            else {
-                                                val trimmed = BqTimelineOps.trim(clip, clip.startMs, project.playheadMs)
-                                                if (trimmed != null) { commit(project.copy(clips = project.clips.map { if (it.id == clip.id) trimmed else it })); status = "Trimmed to playhead" }
-                                            }
-                                        }) { Text("Trim") }
-                                        TextButton(onClick = {
-                                            val copy = BqTimelineOps.duplicate(clip)
-                                            commit(project.copy(clips = project.clips + copy, selectedClipId = copy.id)); status = "Clip duplicated"
-                                        }) { Text("Copy") }
-                                        TextButton(onClick = {
-                                            if (project.clips.size <= 1) status = "Keep at least one clip in the project"
-                                            else { commit(project.copy(clips = project.clips.filterNot { it.id == clip.id }, selectedClipId = project.clips.firstOrNull { it.id != clip.id }?.id)); status = "Clip deleted" }
-                                        }) { Text("Delete") }
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
-
-                Spacer(Modifier.width(8.dp))
-                Card(Modifier.weight(0.9f).fillMaxSize()) {
+                Card(Modifier.weight(0.92f).fillMaxSize()) {
                     Column(Modifier.fillMaxSize()) {
+                        Text("Edit Controls", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 14.dp, top = 12.dp, bottom = 2.dp))
+                        Text("Select a tool below. Your edits remain non-destructive.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 14.dp))
                         TabRow(selectedTabIndex = inspectorTab) {
-                            listOf("Inspector", "Color", "Effects", "FX", "Media", "Captions", "Keyframes", "Chroma", "Advanced").forEachIndexed { index, title -> Tab(selected = inspectorTab == index, onClick = { inspectorTab = index }, text = { Text(title) }) }
+                            listOf("Inspector", "Color", "Effects", "FX", "Media", "Captions", "Keyframes", "Chroma", "Advanced").forEachIndexed { index, title ->
+                                Tab(selected = inspectorTab == index, onClick = { inspectorTab = index }, text = { Text(title) })
+                            }
                         }
                         val selected = project.clips.firstOrNull { it.id == project.selectedClipId }
                         when (inspectorTab) {
@@ -350,7 +351,7 @@ private fun BqProEditApp() {
                     }
                 }
             }
-            status?.let { Text(it, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 5.dp)) }
+            status?.let { Text(it, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 4.dp)) }
         }
     }
 
