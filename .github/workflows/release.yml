@@ -13,7 +13,7 @@ jobs:
     env:
       BQ_RELEASE_STORE_FILE: ${{ github.workspace }}/signing/bq-pro-edit-release.jks
       BQ_RELEASE_STORE_PASSWORD: ${{ secrets.BQ_RELEASE_STORE_PASSWORD }}
-      BQ_RELEASE_KEY_ALIAS: ${{ secrets.BQ_RELEASE_KEY_ALIAS }}
+      BQ_RELEASE_KEY_ALIAS: bq-pro-edit-release
       BQ_RELEASE_KEY_PASSWORD: ${{ secrets.BQ_RELEASE_KEY_PASSWORD }}
 
     steps:
