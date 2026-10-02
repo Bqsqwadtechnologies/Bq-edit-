@@ -77,21 +77,22 @@ jobs:
           test -n "$BQ_RELEASE_KEY_PASSWORD"
           test -f "$BQ_RELEASE_STORE_FILE"
 
-          aliases="$(keytool -list -v -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" 2>/dev/null | awk -F': ' '/^Alias name: / {print $2}')"
+          aliases="$(LC_ALL=C keytool -list -v -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" 2>/dev/null | sed -n 's/^[[:space:]]*Alias name:[[:space:]]*//p' | sed '/^$/d')"
           if [ -z "$aliases" ]; then
             echo "::error::No aliases were found in the restored release keystore."
             exit 1
           fi
 
-          alias_count="$(printf '%s\n' "$aliases" | sed '/^$/d' | wc -l | tr -d ' ')"
+          alias_count="$(printf '%s\n' "$aliases" | wc -l | tr -d ' ')"
           if [ "$alias_count" -ne 1 ]; then
             echo "::error::Expected exactly one signing alias in the release keystore, found $alias_count."
             printf '%s\n' "$aliases"
             exit 1
           fi
 
-          export BQ_RELEASE_KEY_ALIAS="$(printf '%s\n' "$aliases" | sed -n '1p')"
-          keytool -list -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" -alias "$BQ_RELEASE_KEY_ALIAS" >/dev/null
+          BQ_RELEASE_KEY_ALIAS="$(printf '%s\n' "$aliases" | sed -n '1p')"
+          test -n "$BQ_RELEASE_KEY_ALIAS"
+          LC_ALL=C keytool -list -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" -alias "$BQ_RELEASE_KEY_ALIAS" >/dev/null
           echo "BQ_RELEASE_KEY_ALIAS=$BQ_RELEASE_KEY_ALIAS" >> "$GITHUB_ENV"
           echo "Release keystore, alias, and store password verified."
 
