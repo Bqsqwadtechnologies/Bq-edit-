@@ -20,43 +20,51 @@ object BqAdvancedStateCodec {
         put("beats",JSONArray(s.audioMarkers.map{JSONObject().apply{put("time",it.timeMs);put("label",it.label)}}))
         put("versions",JSONArray(s.versions.map{JSONObject().apply{put("id",it.id);put("created",it.createdAt);put("label",it.label);put("project",it.projectId)}}))
         put("schema", 2)
-        put("adjustmentStacks", JSONObject(s.adjustmentStacks.mapValues { (_, v) ->
-            JSONObject().apply {
-                put("enabled", v.enabled)
-                put("color", JSONObject().apply {
-                    put("exposure", v.colorGrade.exposure)
-                    put("contrast", v.colorGrade.contrast)
-                    put("highlights", v.colorGrade.highlights)
-                    put("shadows", v.colorGrade.shadows)
-                    put("whites", v.colorGrade.whites)
-                    put("blacks", v.colorGrade.blacks)
-                    put("saturation", v.colorGrade.saturation)
-                    put("temperature", v.colorGrade.temperature)
-                    put("tint", v.colorGrade.tint)
-                    v.colorGrade.lutUri?.let { put("lutUri", it.toString()) }
-                })
-                put("effects", JSONArray(v.effects.map { effect ->
-                    JSONObject().apply {
-                        put("id", effect.id)
-                        put("name", effect.name)
-                        put("kind", effect.kind.name)
-                        put("enabled", effect.enabled)
-                        put("parameters", JSONObject(effect.parameters.mapValues { (_, p) ->
-                            JSONObject().apply {
-                                put("value", p.value)
-                                put("keyframes", JSONArray(p.keyframes.map { k ->
-                                    JSONObject().apply {
-                                        put("time", k.timeMs)
-                                        put("value", k.value)
-                                        put("interpolation", k.interpolation.name)
+        put("adjustmentStacks", JSONObject().apply {
+            s.adjustmentStacks.forEach { (key, stack) ->
+                put(key, JSONObject().apply {
+                    put("enabled", stack.enabled)
+                    put("color", JSONObject().apply {
+                        put("exposure", stack.colorGrade.exposure)
+                        put("contrast", stack.colorGrade.contrast)
+                        put("highlights", stack.colorGrade.highlights)
+                        put("shadows", stack.colorGrade.shadows)
+                        put("whites", stack.colorGrade.whites)
+                        put("blacks", stack.colorGrade.blacks)
+                        put("saturation", stack.colorGrade.saturation)
+                        put("temperature", stack.colorGrade.temperature)
+                        put("tint", stack.colorGrade.tint)
+                        stack.colorGrade.lutUri?.let { put("lutUri", it.toString()) }
+                    })
+                    put("effects", JSONArray().apply {
+                        stack.effects.forEach { effect ->
+                            put(JSONObject().apply {
+                                put("id", effect.id)
+                                put("name", effect.name)
+                                put("kind", effect.kind.name)
+                                put("enabled", effect.enabled)
+                                put("parameters", JSONObject().apply {
+                                    effect.parameters.forEach { (name, parameter) ->
+                                        put(name, JSONObject().apply {
+                                            put("value", parameter.value)
+                                            put("keyframes", JSONArray().apply {
+                                                parameter.keyframes.forEach { keyframe ->
+                                                    put(JSONObject().apply {
+                                                        put("time", keyframe.timeMs)
+                                                        put("value", keyframe.value)
+                                                        put("interpolation", keyframe.interpolation.name)
+                                                    })
+                                                }
+                                            })
+                                        })
                                     }
-                                }))
-                            }
-                        }))
-                    }
-                }))
+                                })
+                            })
+                        }
+                    })
+                })
             }
-        }))
+        })
     }
     fun fromJson(o: JSONObject?): BqAdvancedEditorState {
         if (o == null) return BqAdvancedEditorState()
