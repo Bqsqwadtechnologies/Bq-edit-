@@ -13,7 +13,7 @@ jobs:
     env:
       BQ_RELEASE_STORE_FILE: ${{ github.workspace }}/signing/bq-pro-edit-release.jks
       BQ_RELEASE_STORE_PASSWORD: ${{ secrets.BQ_RELEASE_STORE_PASSWORD }}
-      BQ_RELEASE_KEY_ALIAS: ${{ secrets.BQ_RELEASE_KEY_ALIAS }}
+      BQ_RELEASE_KEY_ALIAS: bq-pro-edit-release-v2
       BQ_RELEASE_KEY_PASSWORD: ${{ secrets.BQ_RELEASE_KEY_PASSWORD }}
 
     steps:
@@ -77,8 +77,15 @@ jobs:
           test -n "$BQ_RELEASE_KEY_ALIAS"
           test -n "$BQ_RELEASE_KEY_PASSWORD"
           test -f "$BQ_RELEASE_STORE_FILE"
-          keytool -list -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" -alias "$BQ_RELEASE_KEY_ALIAS" >/dev/null
-          echo "Release keystore, alias, and password verified."
+          if ! keytool -list -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" >/dev/null 2>&1; then
+            echo "::error::The restored keystore could not be opened with BQ_RELEASE_STORE_PASSWORD. Update BQ_RELEASE_STORE_PASSWORD so it matches the new v2 JKS."
+            exit 1
+          fi
+          if ! keytool -list -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" -alias "$BQ_RELEASE_KEY_ALIAS" >/dev/null 2>&1; then
+            echo "::error::Alias $BQ_RELEASE_KEY_ALIAS was not found in the restored keystore."
+            exit 1
+          fi
+          echo "Release keystore, alias, and store password verified."
 
       - name: Build signed release APK and AAB
         run: gradle :app:assembleRelease :app:bundleRelease --stacktrace --no-daemon --warning-mode=all
