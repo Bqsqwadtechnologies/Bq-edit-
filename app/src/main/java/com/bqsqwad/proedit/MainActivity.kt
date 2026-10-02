@@ -292,7 +292,7 @@ private fun BqProEditApp() {
                                 Slider(value = position.coerceIn(0L, duration).toFloat(), onValueChange = { position = it.toLong(); player.seekTo(position) }, valueRange = 0f..duration.toFloat(), modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
                             }
                             Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()).padding(vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text("Export", style = MaterialTheme.typography.labelMedium)
+                                BqFeatureLogo("Export", "EX", Color(0xFF7B1FA2), Modifier.padding(end = 6.dp))
                                 OutlinedButton(onClick = { exportConfig = BqExportConfig(1920,1080,30,12_000_000) }, enabled = !exportBusy) { Text("FHD 30") }
                                 OutlinedButton(onClick = { exportConfig = BqExportConfig(1280,720,30,8_000_000) }, enabled = !exportBusy) { Text("HD 30") }
                                 OutlinedButton(onClick = { exportConfig = BqExportConfig(1920,1080,60,20_000_000) }, enabled = !exportBusy) { Text("FHD 60") }
@@ -311,8 +311,8 @@ private fun BqProEditApp() {
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(8.dp)) {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                BqFeatureLogo("Timeline", "TL", Color(0xFF6A1B9A), Modifier.weight(1f))
                                 Column(Modifier.weight(1f)) {
-                                    Text("Timeline", style = MaterialTheme.typography.titleMedium)
                                     Text(project.clips.size + " clips  ·  select a clip to edit", style = MaterialTheme.typography.labelSmall)
                                 }
                                 OutlinedButton(onClick = { picker.launch(arrayOf("video/*", "image/*", "audio/*")) }) { Text("+ Media") }
@@ -365,7 +365,7 @@ private fun BqProEditApp() {
                             }
                         }
                         HorizontalDivider()
-                        Text("Edit Controls", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 14.dp, top = 10.dp, bottom = 2.dp))
+                        BqFeatureLogo("Edit Controls", "ED", Color(0xFF1565C0), Modifier.padding(start = 14.dp, top = 10.dp, bottom = 2.dp))
                         Text("Select a tool below. Your edits remain non-destructive.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 14.dp))
                         TabRow(selectedTabIndex = inspectorTab) {
                             listOf("Inspector", "Color", "Effects", "FX", "Media", "Captions", "Keyframes", "Chroma", "Advanced").forEachIndexed { index, title ->
