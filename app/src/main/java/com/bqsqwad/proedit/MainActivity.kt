@@ -288,7 +288,7 @@ private fun BqProEditApp() {
                                         status = if (bitmap != null) "Frame captured" else "Frame capture unavailable"
                                     }.onFailure { status = "Frame capture failed: " + (it.message ?: "unknown error") }
                                 }, enabled = project.clips.any { it.mediaType == BqMediaType.VIDEO }) { Text("Capture") }
-                                Text(position / 1000 + "s / " + duration / 1000 + "s", style = MaterialTheme.typography.labelSmall)
+                                Text((position / 1000).toString() + "s / " + (duration / 1000).toString() + "s", style = MaterialTheme.typography.labelSmall)
                                 Slider(value = position.coerceIn(0L, duration).toFloat(), onValueChange = { position = it.toLong(); player.seekTo(position) }, valueRange = 0f..duration.toFloat(), modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
                             }
                             Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()).padding(vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -313,7 +313,7 @@ private fun BqProEditApp() {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 BqFeatureLogo("Timeline", "TL", Color(0xFF6A1B9A), Modifier.weight(1f))
                                 Column(Modifier.weight(1f)) {
-                                    Text(project.clips.size + " clips  ·  select a clip to edit", style = MaterialTheme.typography.labelSmall)
+                                    Text(project.clips.size.toString() + " clips  ·  select a clip to edit", style = MaterialTheme.typography.labelSmall)
                                 }
                                 OutlinedButton(onClick = { picker.launch(arrayOf("video/*", "image/*", "audio/*")) }) { Text("+ Media") }
                             }
