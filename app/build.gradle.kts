@@ -3,7 +3,7 @@ import org.gradle.kotlin.dsl.configure
 
 val releaseStoreFile = System.getenv("BQ_RELEASE_STORE_FILE")
 val releaseStorePassword = System.getenv("BQ_RELEASE_STORE_PASSWORD")
-val releaseKeyAlias = "bq-pro-edit-release"
+val releaseKeyAlias = System.getenv("BQ_RELEASE_KEY_ALIAS")?.takeIf { it.isNotBlank() } ?: "bq-pro-edit-release"
 val releaseKeyPassword = System.getenv("BQ_RELEASE_KEY_PASSWORD")
 val hasReleaseSigning = listOf(
     releaseStoreFile,
