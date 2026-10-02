@@ -77,24 +77,59 @@ jobs:
           test -n "$BQ_RELEASE_KEY_PASSWORD"
           test -f "$BQ_RELEASE_STORE_FILE"
 
-          aliases="$(LC_ALL=C keytool -list -v -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" 2>/dev/null | sed -n 's/^[[:space:]]*Alias name:[[:space:]]*//p' | sed '/^$/d')"
+          keytool_output="$(
+            LC_ALL=C keytool -list -v               -keystore "$BQ_RELEASE_STORE_FILE"               -storepass "$BQ_RELEASE_STORE_PASSWORD" 2>&1
+          )" || {
+            echo "::error::Unable to open the restored release keystore with the configured store password."
+            exit 1
+          }
+
+          aliases="$(
+            printf '%s
+' "$keytool_output" |
+              awk -F': ' '/^[[:space:]]*Alias name:[[:space:]]*/ {print $2}' |
+              sed '/^$/d'
+          )"
+
           if [ -z "$aliases" ]; then
-            echo "::error::No aliases were found in the restored release keystore."
+            aliases="$(
+              printf '%s
+' "$keytool_output" |
+                awk '
+                  /Your keystore contains [0-9]+ entr/ { entries=1; next }
+                  entries && NF {
+                    value=$1
+                    sub(/,$/, "", value)
+                    print value
+                    exit
+                  }
+                '
+            )"
+          fi
+
+          if [ -z "$aliases" ]; then
+            echo "::error::No signing alias could be read from the restored release keystore."
             exit 1
           fi
 
-          alias_count="$(printf '%s\n' "$aliases" | wc -l | tr -d ' ')"
+          alias_count="$(printf '%s
+' "$aliases" | sed '/^$/d' | wc -l | tr -d ' ')"
           if [ "$alias_count" -ne 1 ]; then
             echo "::error::Expected exactly one signing alias in the release keystore, found $alias_count."
-            printf '%s\n' "$aliases"
             exit 1
           fi
 
-          BQ_RELEASE_KEY_ALIAS="$(printf '%s\n' "$aliases" | sed -n '1p')"
+          BQ_RELEASE_KEY_ALIAS="$(printf '%s
+' "$aliases" | sed -n '1p' | sed 's/[[:space:]]*$//')"
           test -n "$BQ_RELEASE_KEY_ALIAS"
-          LC_ALL=C keytool -list -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" -alias "$BQ_RELEASE_KEY_ALIAS" >/dev/null
+
+          if ! LC_ALL=C keytool -list               -keystore "$BQ_RELEASE_STORE_FILE"               -storepass "$BQ_RELEASE_STORE_PASSWORD"               -alias "$BQ_RELEASE_KEY_ALIAS" >/dev/null 2>&1; then
+            echo "::error::The detected release signing alias could not be opened."
+            exit 1
+          fi
+
           echo "BQ_RELEASE_KEY_ALIAS=$BQ_RELEASE_KEY_ALIAS" >> "$GITHUB_ENV"
-          echo "Release keystore, alias, and store password verified."
+          echo "Release keystore and signing alias verified."
 
       - name: Build signed release APK and AAB
         run: gradle :app:assembleRelease :app:bundleRelease --stacktrace --no-daemon --warning-mode=all
