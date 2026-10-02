@@ -13,7 +13,7 @@ jobs:
     env:
       BQ_RELEASE_STORE_FILE: ${{ github.workspace }}/signing/bq-pro-edit-release.jks
       BQ_RELEASE_STORE_PASSWORD: ${{ secrets.BQ_RELEASE_STORE_PASSWORD }}
-      BQ_RELEASE_KEY_ALIAS: bq-pro-edit-release-v2
+      BQ_RELEASE_KEY_ALIAS: ""
       BQ_RELEASE_KEY_PASSWORD: ${{ secrets.BQ_RELEASE_KEY_PASSWORD }}
 
     steps:
@@ -74,17 +74,25 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$BQ_RELEASE_STORE_PASSWORD"
-          test -n "$BQ_RELEASE_KEY_ALIAS"
           test -n "$BQ_RELEASE_KEY_PASSWORD"
           test -f "$BQ_RELEASE_STORE_FILE"
-          if ! keytool -list -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" >/dev/null 2>&1; then
-            echo "::error::The restored keystore could not be opened with BQ_RELEASE_STORE_PASSWORD. Update BQ_RELEASE_STORE_PASSWORD so it matches the new v2 JKS."
+
+          aliases="$(keytool -list -v -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" 2>/dev/null | awk -F': ' '/^Alias name: / {print $2}')"
+          if [ -z "$aliases" ]; then
+            echo "::error::No aliases were found in the restored release keystore."
             exit 1
           fi
-          if ! keytool -list -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" -alias "$BQ_RELEASE_KEY_ALIAS" >/dev/null 2>&1; then
-            echo "::error::Alias $BQ_RELEASE_KEY_ALIAS was not found in the restored keystore."
+
+          alias_count="$(printf '%s\n' "$aliases" | sed '/^$/d' | wc -l | tr -d ' ')"
+          if [ "$alias_count" -ne 1 ]; then
+            echo "::error::Expected exactly one signing alias in the release keystore, found $alias_count."
+            printf '%s\n' "$aliases"
             exit 1
           fi
+
+          export BQ_RELEASE_KEY_ALIAS="$(printf '%s\n' "$aliases" | sed -n '1p')"
+          keytool -list -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" -alias "$BQ_RELEASE_KEY_ALIAS" >/dev/null
+          echo "BQ_RELEASE_KEY_ALIAS=$BQ_RELEASE_KEY_ALIAS" >> "$GITHUB_ENV"
           echo "Release keystore, alias, and store password verified."
 
       - name: Build signed release APK and AAB
