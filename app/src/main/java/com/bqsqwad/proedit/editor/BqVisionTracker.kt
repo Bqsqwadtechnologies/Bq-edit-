@@ -30,7 +30,7 @@ class BqVisionTracker {
             poseDetector.process(image)
                 .addOnSuccessListener { pose -> cont.resume(pose.toBqPose(frameTimeUs)) }
                 .addOnFailureListener { error -> cont.resumeWithException(error) }
-            cont.invokeOnCancellation { poseDetector.close() }
+            // Keep the shared detector alive; close it only from close().
         }
 
     suspend fun detectObjects(image: InputImage, frameTimeUs: Long): List<BqTrackedObject> =
@@ -40,7 +40,7 @@ class BqVisionTracker {
                     cont.resume(objects.map { it.toBqObject(frameTimeUs) })
                 }
                 .addOnFailureListener { error -> cont.resumeWithException(error) }
-            cont.invokeOnCancellation { objectDetector.close() }
+            // Keep the shared detector alive; close it only from close().
         }
 
     suspend fun detectSubjects(image: InputImage, frameTimeUs: Long): List<BqTrackedObject> =
