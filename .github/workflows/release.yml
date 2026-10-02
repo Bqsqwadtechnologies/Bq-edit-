@@ -14,7 +14,7 @@ jobs:
     env:
       BQ_RELEASE_STORE_FILE: ${{ github.workspace }}/signing/bq-pro-edit-release.jks
       BQ_RELEASE_STORE_PASSWORD: ${{ secrets.BQ_RELEASE_STORE_PASSWORD }}
-      BQ_RELEASE_KEY_ALIAS: ""
+      BQ_RELEASE_KEY_ALIAS: ${{ secrets.BQ_RELEASE_KEY_ALIAS }}
       BQ_RELEASE_KEY_PASSWORD: ${{ secrets.BQ_RELEASE_KEY_PASSWORD }}
       JAVA_TOOL_OPTIONS: -Xshare:off
 
@@ -66,6 +66,7 @@ jobs:
           set -euo pipefail
           test -n "$BQ_RELEASE_KEYSTORE_BASE64"
           test -n "$BQ_RELEASE_STORE_PASSWORD"
+          test -n "$BQ_RELEASE_KEY_ALIAS"
           test -n "$BQ_RELEASE_KEY_PASSWORD"
           mkdir -p "$(dirname "$BQ_RELEASE_STORE_FILE")"
           python3 - "$BQ_RELEASE_STORE_FILE" <<'PY'
@@ -81,14 +82,6 @@ jobs:
           open(sys.argv[1], "wb").write(data)
           PY
           chmod 600 "$BQ_RELEASE_STORE_FILE"
-
-      - name: Detect signing alias
-        run: |
-          set -euo pipefail
-          alias="$(keytool -list -v -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" 2>/dev/null | sed -n 's/^Alias name: //p' | head -n 1 | sed 's/[[:space:]]*$//')"
-          test -n "$alias"
-          keytool -list -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" -alias "$alias" >/dev/null
-          echo "BQ_RELEASE_KEY_ALIAS=$alias" >> "$GITHUB_ENV"
 
       - name: Release APK
         run: gradle :app:assembleRelease --no-daemon --stacktrace
