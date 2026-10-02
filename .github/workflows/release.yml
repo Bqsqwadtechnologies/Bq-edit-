@@ -1,4 +1,4 @@
-name: BQ Pro Edit Release
+name: BQ Pro Edit Debug Test
 
 on:
   workflow_dispatch:
@@ -7,15 +7,11 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: Build and release
+  debug:
+    name: Debug build test
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
-      BQ_RELEASE_STORE_FILE: ${{ github.workspace }}/signing/bq-pro-edit-release.jks
-      BQ_RELEASE_STORE_PASSWORD: ${{ secrets.BQ_RELEASE_STORE_PASSWORD }}
-      BQ_RELEASE_KEY_ALIAS: ${{ secrets.BQ_RELEASE_KEY_ALIAS }}
-      BQ_RELEASE_KEY_PASSWORD: ${{ secrets.BQ_RELEASE_KEY_PASSWORD }}
       JAVA_TOOL_OPTIONS: -Xshare:off
 
     steps:
@@ -56,53 +52,11 @@ jobs:
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" >/dev/null 2>&1
 
-      - name: Debug APK
+      - name: Assemble debug APK
         run: gradle :app:assembleDebug --no-daemon --stacktrace
-
-      - name: Restore signing keystore
-        env:
-          BQ_RELEASE_KEYSTORE_BASE64: ${{ secrets.BQ_RELEASE_KEYSTORE_BASE64 }}
-        run: |
-          set -euo pipefail
-          test -n "$BQ_RELEASE_KEYSTORE_BASE64"
-          test -n "$BQ_RELEASE_STORE_PASSWORD"
-          test -n "$BQ_RELEASE_KEY_ALIAS"
-          test -n "$BQ_RELEASE_KEY_PASSWORD"
-          mkdir -p "$(dirname "$BQ_RELEASE_STORE_FILE")"
-          python3 - "$BQ_RELEASE_STORE_FILE" <<'PY'
-          import base64, binascii, os, sys
-          value = "".join(os.environ["BQ_RELEASE_KEYSTORE_BASE64"].split())
-          value += "=" * (-len(value) % 4)
-          try:
-              data = base64.b64decode(value, validate=True)
-          except (binascii.Error, ValueError) as exc:
-              raise SystemExit(f"Invalid keystore data: {exc}")
-          if not data:
-              raise SystemExit("Keystore is empty")
-          open(sys.argv[1], "wb").write(data)
-          PY
-          chmod 600 "$BQ_RELEASE_STORE_FILE"
-
-      - name: Release APK
-        run: gradle :app:assembleRelease --no-daemon --stacktrace
-
-      - name: Release AAB
-        run: gradle :app:bundleRelease --no-daemon --stacktrace
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v7
         with:
           name: bq-pro-edit-debug-apk
           path: app/build/outputs/apk/debug/*.apk
-
-      - name: Upload release APK
-        uses: actions/upload-artifact@v7
-        with:
-          name: bq-pro-edit-release-apk
-          path: app/build/outputs/apk/release/*.apk
-
-      - name: Upload release AAB
-        uses: actions/upload-artifact@v7
-        with:
-          name: bq-pro-edit-release-aab
-          path: app/build/outputs/bundle/release/*.aab
