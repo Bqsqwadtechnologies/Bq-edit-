@@ -81,10 +81,12 @@ jobs:
           alias_status=$?
           set -e
           if [ "$alias_status" -ne 0 ]; then
-            echo "Configured release alias '$BQ_RELEASE_KEY_ALIAS' was not found with the supplied keystore password."
-            echo "Available aliases in the restored keystore:"
-            keytool -list -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" | sed -n '/^[^ ]/p'
-            exit 1
+            echo "Configured release alias '$BQ_RELEASE_KEY_ALIAS' was not found; discovering the private-key alias in the restored keystore."
+            discovered_alias="$(keytool -list -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" | awk '/PrivateKeyEntry/ {print $1; exit}' | tr -d ',')"
+            test -n "$discovered_alias"
+            echo "Using discovered release alias: $discovered_alias"
+            echo "BQ_RELEASE_KEY_ALIAS=$discovered_alias" >> "$GITHUB_ENV"
+            BQ_RELEASE_KEY_ALIAS="$discovered_alias"
           fi
           tmp_csr="$(mktemp)"
           trap 'rm -f "$tmp_csr"' EXIT
