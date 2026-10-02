@@ -48,10 +48,10 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      - name: Set up Gradle 9.8.0
+      - name: Set up Gradle 9.6.0
         uses: gradle/actions/setup-gradle@v6
         with:
-          gradle-version: '9.8.0'
+          gradle-version: '9.6.0'
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
@@ -114,10 +114,10 @@ jobs:
         continue-on-error: true
         run: |
           set -euo pipefail
-          output="$(keytool -list -v -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" 2>&1)"
-          alias="$(printf '%s\n' "$output" | awk -F': ' '/Alias name:/ {print $2; exit}' | sed 's/[[:space:]]*$//')"
+          alias="$(keytool -list -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" 2>/dev/null | awk -F',' '/PrivateKeyEntry/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1); print $1; exit}')"
           test -n "$alias"
           keytool -list -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" -alias "$alias" >/dev/null
+          echo "Detected release signing alias."
           echo "BQ_RELEASE_KEY_ALIAS=$alias" >> "$GITHUB_ENV"
 
       - name: Release APK
