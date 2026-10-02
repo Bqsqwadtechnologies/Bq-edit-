@@ -838,18 +838,18 @@ private enum class BqGuideFeature(
     val how: String,
     val mark: String
 ) {
-    IMPORT("Import media", Color(0xFF1565C0), "Tap Import in the Media area, choose video, photo or audio, then select the clip in the timeline."), "IM",
-    TIMELINE("Timeline editing", Color(0xFF6A1B9A), "Select a clip, then use the editor controls to trim, split, duplicate, move and adjust timing. Undo and Redo restore earlier states."), "TL",
-    TRANSFORM("Transform & framing", Color(0xFF00838F), "Use Inspector to change scale, X/Y position, rotation, opacity and clip framing without changing the source file."), "TR",
-    SPEED("Speed & time", Color(0xFF2E7D32), "Use the Speed slider in Inspector. Keyframes can animate effect values over the playhead timeline."), "SP",
-    COLOR("Color grading", Color(0xFFEF6C00), "Open Color and adjust exposure, contrast, highlights, shadows, whites, blacks, saturation, temperature and tint."), "CL",
-    EFFECTS("Effects", Color(0xFFC62828), "Open Effects, add an effect, turn it on or off, change its amount and remove it. The stack is saved with the project."), "FX",
-    CHROMA("Chroma key & masks", Color(0xFF00695C), "Open Chroma, enable green-screen removal, tune similarity/softness/spill and add non-destructive masks."), "CH",
-    SUPERPOWER("Person-locked Superpower FX", Color(0xFFAD1457), "Open FX, add a power, choose the tracked person and body part, then use the timeline to control when the power is active."), "PX",
-    AUDIO("Audio", Color(0xFF4527A0), "Use Inspector audio controls for volume, mute, solo and fades. Imported audio can be kept as project media."), "AU",
-    CAPTIONS("Captions & SRT", Color(0xFF283593), "Open Captions, add text at the playhead, or import/export SRT. Captions remain editable in the project."), "CC",
-    ADVANCED("Professional tools", Color(0xFF37474F), "Open Advanced for proxy settings, motion blur, beat markers, export presets, transitions and the advanced compositor state."), "AD",
-    EXPORT("Export", Color(0xFF7B1FA2), "Choose FHD/HD/FHD60, validate the project, "EX", then Export MP4. Progress can be cancelled and completed video is saved to the gallery.")
+    IMPORT("Import media", Color(0xFF1565C0), "Tap Import in the Media area, choose video, photo or audio, then select the clip in the timeline.", "IM"),
+    TIMELINE("Timeline editing", Color(0xFF6A1B9A), "Select a clip, then use the editor controls to trim, split, duplicate, move and adjust timing. Undo and Redo restore earlier states.", "TL"),
+    TRANSFORM("Transform & framing", Color(0xFF00838F), "Use Inspector to change scale, X/Y position, rotation, opacity and clip framing without changing the source file.", "TR"),
+    SPEED("Speed & time", Color(0xFF2E7D32), "Use the Speed slider in Inspector. Keyframes can animate effect values over the playhead timeline.", "SP"),
+    COLOR("Color grading", Color(0xFFEF6C00), "Open Color and adjust exposure, contrast, highlights, shadows, whites, blacks, saturation, temperature and tint.", "CL"),
+    EFFECTS("Effects", Color(0xFFC62828), "Open Effects, add an effect, turn it on or off, change its amount and remove it. The stack is saved with the project.", "FX"),
+    CHROMA("Chroma key & masks", Color(0xFF00695C), "Open Chroma, enable green-screen removal, tune similarity/softness/spill and add non-destructive masks.", "CH"),
+    SUPERPOWER("Person-locked Superpower FX", Color(0xFFAD1457), "Open FX, add a power, choose the tracked person and body part, then use the timeline to control when the power is active.", "PX"),
+    AUDIO("Audio", Color(0xFF4527A0), "Use Inspector audio controls for volume, mute, solo and fades. Imported audio can be kept as project media.", "AU"),
+    CAPTIONS("Captions & SRT", Color(0xFF283593), "Open Captions, add text at the playhead, or import/export SRT. Captions remain editable in the project.", "CC"),
+    ADVANCED("Professional tools", Color(0xFF37474F), "Open Advanced for proxy settings, motion blur, beat markers, export presets, transitions and the advanced compositor state.", "AD"),
+    EXPORT("Export", Color(0xFF7B1FA2), "Choose FHD/HD/FHD60, validate the project, then Export MP4. Progress can be cancelled and completed video is saved to the gallery.", "EX")
 }
 
 @Composable
