@@ -329,7 +329,22 @@ private fun BqProEditApp() {
                 }
                 Card(Modifier.weight(0.92f).fillMaxSize()) {
                     Column(Modifier.fillMaxSize()) {
-                        Text("Edit Controls", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 14.dp, top = 12.dp, bottom = 2.dp))
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Image(
+                                painterResource(com.bqsqwad.proedit.R.drawable.bq_pro_edit_logo),
+                                "BQ Pro Edit",
+                                Modifier.width(34.dp).height(34.dp)
+                            )
+                            Column(Modifier.padding(start = 9.dp)) {
+                                Text("BQ Pro Edit", style = MaterialTheme.typography.titleMedium)
+                                Text("Edit workspace", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                        HorizontalDivider()
+                        Text("Edit Controls", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 14.dp, top = 10.dp, bottom = 2.dp))
                         Text("Select a tool below. Your edits remain non-destructive.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 14.dp))
                         TabRow(selectedTabIndex = inspectorTab) {
                             listOf("Inspector", "Color", "Effects", "FX", "Media", "Captions", "Keyframes", "Chroma", "Advanced").forEachIndexed { index, title ->
