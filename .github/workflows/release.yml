@@ -22,6 +22,7 @@ jobs:
       BQ_RELEASE_STORE_PASSWORD: ${{ secrets.BQ_RELEASE_STORE_PASSWORD }}
       BQ_RELEASE_KEY_ALIAS: ""
       BQ_RELEASE_KEY_PASSWORD: ${{ secrets.BQ_RELEASE_KEY_PASSWORD }}
+      JAVA_TOOL_OPTIONS: -Xshare:off
 
     steps:
       - name: Checkout main only
@@ -39,6 +40,7 @@ jobs:
           test -f gradle.properties
           test -f app/build.gradle.kts
           test -f app/src/main/AndroidManifest.xml
+          git config --global init.defaultBranch main
           echo "Commit: $(git rev-parse HEAD)"
 
       - name: Set up Java 17
@@ -59,12 +61,12 @@ jobs:
       - name: Install Android SDK
         run: |
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
-          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" >/dev/null 2>&1
 
       - name: Inspect Gradle tasks
         id: inspect
         continue-on-error: true
-        run: gradle :app:tasks --all --no-daemon --stacktrace --warning-mode=all
+        run: gradle :app:tasks --all --no-daemon --stacktrace --warning-mode=none
 
       - name: Unit tests
         id: tests
