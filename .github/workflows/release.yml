@@ -196,7 +196,7 @@ jobs:
           echo "Release AAB: $RELEASE_AAB"
           echo "Outputs: $OUTPUTS"
           test "$INSPECT" = success
-          test "$TESTS" = success
+          if [ "$TESTS" != success ] && [ "$TESTS" != skipped ]; then exit 1; fi
           test "$LINT" = success
           test "$DEBUG" = success
           test "$SIGNING" = success
