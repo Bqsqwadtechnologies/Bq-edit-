@@ -1,7 +1,7 @@
 name: BQ Pro Edit Release
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}
 
 permissions:
   contents: read
