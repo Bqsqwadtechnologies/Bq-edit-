@@ -114,7 +114,8 @@ jobs:
         continue-on-error: true
         run: |
           set -euo pipefail
-          alias="$(keytool -list -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" 2>/dev/null | awk -F',' '/PrivateKeyEntry/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1); print $1; exit}')"
+          output="$(keytool -list -v -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" 2>&1)"
+          alias="$(printf '%s\n' "$output" | awk -F': ' '/Alias name:/ {print $2; exit}' | sed 's/[[:space:]]*$//')"
           test -n "$alias"
           keytool -list -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" -alias "$alias" >/dev/null
           echo "Detected release signing alias."
@@ -122,13 +123,13 @@ jobs:
 
       - name: Release APK
         id: release_apk
-        if: ${{ steps.alias.outcome == 'success' }}
+        if: ${{ always() && steps.alias.outcome == 'success' }}
         continue-on-error: true
         run: gradle :app:assembleRelease --no-daemon --stacktrace --warning-mode=all
 
       - name: Release AAB
         id: release_aab
-        if: ${{ steps.alias.outcome == 'success' }}
+        if: ${{ always() && steps.alias.outcome == 'success' }}
         continue-on-error: true
         run: gradle :app:bundleRelease --no-daemon --stacktrace --warning-mode=all
 
