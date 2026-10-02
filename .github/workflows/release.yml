@@ -13,7 +13,7 @@ jobs:
     env:
       BQ_RELEASE_STORE_FILE: ${{ github.workspace }}/signing/bq-pro-edit-release.jks
       BQ_RELEASE_STORE_PASSWORD: ${{ secrets.BQ_RELEASE_STORE_PASSWORD }}
-      BQ_RELEASE_KEY_ALIAS: bq-pro-edit-release
+      BQ_RELEASE_KEY_ALIAS: ${{ vars.BQ_RELEASE_KEY_ALIAS || 'bq-pro-edit-release' }}
       BQ_RELEASE_KEY_PASSWORD: ${{ secrets.BQ_RELEASE_KEY_PASSWORD }}
 
     steps:
@@ -76,8 +76,21 @@ jobs:
           test -n "$BQ_RELEASE_STORE_PASSWORD"
           test -n "$BQ_RELEASE_KEY_PASSWORD"
           test -f "$BQ_RELEASE_STORE_FILE"
-          keytool -list             -keystore "$BQ_RELEASE_STORE_FILE"             -storepass "$BQ_RELEASE_STORE_PASSWORD"             -alias "$BQ_RELEASE_KEY_ALIAS" >/dev/null
-          echo "Release keystore and alias verified."
+          set +e
+          keytool -list -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" -alias "$BQ_RELEASE_KEY_ALIAS" >/dev/null 2>&1
+          alias_status=$?
+          set -e
+          if [ "$alias_status" -ne 0 ]; then
+            echo "Configured release alias '$BQ_RELEASE_KEY_ALIAS' was not found with the supplied keystore password."
+            echo "Available aliases in the restored keystore:"
+            keytool -list -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" | sed -n '/^[^ ]/p'
+            exit 1
+          fi
+          tmp_csr="$(mktemp)"
+          trap 'rm -f "$tmp_csr"' EXIT
+          keytool -certreq -keystore "$BQ_RELEASE_STORE_FILE" -storepass "$BQ_RELEASE_STORE_PASSWORD" -keypass "$BQ_RELEASE_KEY_PASSWORD" -alias "$BQ_RELEASE_KEY_ALIAS" -file "$tmp_csr" >/dev/null 2>&1
+          test -s "$tmp_csr"
+          echo "Release keystore, alias, and key password verified."
 
       - name: Build signed release APK and AAB
         run: gradle :app:assembleRelease :app:bundleRelease --stacktrace --no-daemon --warning-mode=all
